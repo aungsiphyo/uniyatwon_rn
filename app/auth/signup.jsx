@@ -35,13 +35,13 @@ const yearData = [
   { label: "3rd semester", value: "3rd semester" },
   { label: "4th semester", value: "4th semester" },
   { label: "Third Year - First semester", value: "3-1" },
-  { label: "Third Year - Second semester", value: "3-2" },
+  // { label: "Third Year - Second semester", value: "3-2" },
   { label: "Fourth Year - First semester", value: "4-1" },
   { label: "Fourth Year - Second semester", value: "4-2" },
   { label: "Fifth Year - First semester", value: "5-1" },
-  { label: "Fifth Year - Second semester", value: "5-2" },
+  // { label: "Fifth Year - Second semester", value: "5-2" },
   { label: "Sixth Year - First semester", value: "6-1" },
-  { label: "Sixth Year - Second semester", value: "6-2" },
+  // { label: "Sixth Year - Second semester", value: "6-2" },
 ];
 
 export default function SignupScreen() {

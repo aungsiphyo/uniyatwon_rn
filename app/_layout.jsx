@@ -49,7 +49,7 @@ function StackLayout() {
       {/* 2. FIXED: In Expo Router, do NOT use 'component' prop here */}
       {/* Name must match filename: 'profile' for 'profile.jsx' */}
       <Stack.Screen
-        name="profile"
+        name="profile_other" // Change this from "profile" to "profile_other"
         options={{
           headerShown: true,
           title: "User Profile",

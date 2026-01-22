@@ -1,256 +1,170 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRoute } from "@react-navigation/native";
 import { useEffect, useState } from "react";
-
 import {
   ActivityIndicator,
+  FlatList,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import endpoints, { BASE_URL } from "../../endpoints/endpoints";
+import PostCard from "../../components/PostCard"; // Reusing the high-quality component
+import endpoints from "../../endpoints/endpoints";
 
-/* ===================== AUTH HELPER ===================== */
-const getAuthHeader = async () => {
-  const token = await AsyncStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+const PRIMARY = "#FFD84D";
 
-/* ===================== IMAGE HELPER ===================== */
-// Cleans up double slashes and ensures the URI is safe
-const getCleanUri = (path) => {
-  if (!path) return `${BASE_URL}/uploads/default-profile.png`;
-  // Remove leading slash if it exists to avoid http://ip.com//uploads
-  const cleanPath = path.startsWith("/") ? path.substring(1) : path;
-  return `${BASE_URL}/${encodeURI(cleanPath.trim())}`;
-};
-
-const Profile = () => {
+const MyProfile = () => {
   const [userProfile, setUserProfile] = useState(null);
-  const route = useRoute();
-  const deletePost = async (postId) => {
-    const token = await AsyncStorage.getItem("token");
+  const [loading, setLoading] = useState(true);
+  const [myInfo, setMyInfo] = useState({ uuid: null, name: null });
 
-    const formData = new FormData();
-    formData.append("Reported_post_id", postId);
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      const uuid = await AsyncStorage.getItem("user_uuid");
+      const name = await AsyncStorage.getItem("username");
+      setMyInfo({ uuid, name });
 
-    const res = await fetch(endpoints.deletePost, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        // ❌ DO NOT set Content-Type manually
-      },
-      body: formData,
-    });
+      // backend logic for profile_me.php
+      const res = await fetch(endpoints.profileMe, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-    const data = await res.json();
-    console.log("DELETE RESPONSE:", data);
-  };
+      const data = await res.json();
 
-  // Receives user_uuid from the navigation.navigate("Profile", { user_uuid }) call
-  const user_uuid = route.params?.user_uuid;
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        // Construct URL: If user_uuid exists, we are viewing someone else.
-        // If not, the backend should return the logged-in user's profile based on the token.
-        const url = user_uuid
-          ? `${endpoints.profile}?user_uuid=${user_uuid.trim()}`
-          : endpoints.profile;
-
-        const authHeader = await getAuthHeader();
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            ...authHeader,
-            "Content-Type": "application/json",
-          },
-        });
-
-        // Safe JSON parsing to catch "Unexpected end of input"
-        const responseText = await res.text();
-        if (!responseText) throw new Error("Empty response from server");
-
-        const data = JSON.parse(responseText);
-        console.log("PROFILE RESPONSE:", data);
+      if (data) {
+        // Normalize posts for PostCard expectations
+        const normalized = (data.posts || []).map((p) => ({
+          ...p,
+          id: p.id,
+          post_id: p.id,
+          like_count: parseInt(p.like_count || 0),
+          is_liked: !!(p.is_liked == 1 || p.is_liked === true),
+          media: Array.isArray(p.media) ? p.media : [],
+        }));
 
         setUserProfile({
           isOwnProfile: !!data.isOwnProfile,
-          // Handle the case where the user has no posts yet
-          posts: Array.isArray(data.posts) ? data.posts : [],
-          // You might want to store user info separately if your PHP returns it
-          userInfo: data.user || null,
+          posts: normalized,
+          userInfo: data.user || normalized[0] || null, // Fallback to first post data
         });
-      } catch (err) {
-        console.error("Profile Fetch Error:", err);
-        setUserProfile({ isOwnProfile: false, posts: [] });
       }
-    };
+    } catch (err) {
+      console.error("Profile Fetch Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchProfile();
-  }, [user_uuid]); // Re-runs if the user clicks a different username
+  }, []);
 
-  if (!userProfile) {
+  const renderHeader = () => (
+    <View style={styles.profileHeader}>
+      <Image
+        source={{
+          uri: encodeURI(
+            endpoints.baseURL +
+              (userProfile?.userInfo?.Profile_photo || "default.png"),
+          ),
+        }}
+        style={styles.bigAvatar}
+      />
+      <Text style={styles.profileName}>
+        {userProfile?.userInfo?.Username || "My Profile"}
+      </Text>
+      <Text style={styles.profileSub}>
+        {userProfile?.userInfo?.Major || "Student"}
+      </Text>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={styles.statNumber}>
+            {userProfile?.posts?.length || 0}
+          </Text>
+          <Text style={styles.statLabel}>Posts</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  if (loading && !userProfile) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFD84D" />
-        <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+        <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {userProfile.posts.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>
-            This user hasn't posted anything yet.
-          </Text>
-        </View>
-      ) : (
-        userProfile.posts.map((post) => (
-          <View key={post.id} style={styles.postCard}>
-            <View style={styles.headerRow}>
-              {/* LEFT SIDE (profile info) */}
-              <View
-                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-              >
-                <Image
-                  source={{ uri: getCleanUri(post.Profile_photo) }}
-                  style={styles.profilePicture}
-                />
-                <View style={styles.headerText}>
-                  <Text style={styles.username}>{post.Username}</Text>
-                  <Text style={styles.major}>{post.Major}</Text>
-                </View>
-              </View>
-
-              {/* RIGHT SIDE (delete icon) */}
-              {userProfile.isOwnProfile && (
-                <TouchableOpacity onPress={() => deletePost(post.id)}>
-                  <Ionicons name="trash-outline" size={22} color="red" />
-                </TouchableOpacity>
-              )}
+    <View style={styles.root}>
+      <FlatList
+        data={userProfile?.posts || []}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={{ paddingBottom: 50 }}
+        showsVerticalScrollIndicator={false}
+        onRefresh={fetchProfile}
+        refreshing={loading}
+        renderItem={({ item }) => (
+          <PostCard
+            item={item}
+            isVisible={true} // Videos play on your own profile too
+            onRefresh={fetchProfile}
+            currentUserUuid={myInfo.uuid}
+            currentUsername={myInfo.name}
+          />
+        )}
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.center}>
+              <Text style={styles.emptyText}>
+                You haven't posted anything yet.
+              </Text>
             </View>
-
-            <Text style={styles.description}>{post.Description}</Text>
-
-            {/* ===================== MEDIA ===================== */}
-            {Array.isArray(post.media) && post.media.length > 0 && (
-              <View style={styles.mediaContainer}>
-                {post.media.map((m, index) =>
-                  m.Media_type === "image" ? (
-                    <Image
-                      key={index}
-                      source={{ uri: getCleanUri(m.Media_url) }}
-                      style={styles.mediaImage}
-                    />
-                  ) : (
-                    <View key={index} style={styles.videoPlaceholder}>
-                      <Text>🎥 Video Content</Text>
-                    </View>
-                  ),
-                )}
-              </View>
-            )}
-
-            <Text style={styles.date}>{post.Created_at}</Text>
-          </View>
-        ))
-      )}
-    </ScrollView>
+          )
+        }
+      />
+    </View>
   );
 };
 
-export default Profile;
+export default MyProfile;
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 12,
-    backgroundColor: "#f8f8f8",
-  },
+  root: { flex: 1, backgroundColor: "#fff" },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    minHeight: 300,
+    marginTop: 50,
   },
-  headerRow: {
-    flexDirection: "row",
+  profileHeader: {
     alignItems: "center",
+    paddingVertical: 30,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  bigAvatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: PRIMARY,
     marginBottom: 10,
   },
-  headerText: {
-    marginLeft: 12,
-  },
-  emptyText: {
-    textAlign: "center",
-    marginTop: 40,
-    color: "#777",
-    fontSize: 16,
-  },
-  postCard: {
-    backgroundColor: "#fff",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  username: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  major: {
-    color: "#666",
-    fontSize: 12,
-  },
-  profilePicture: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    borderWidth: 1,
-    borderColor: "#FFD84D",
-  },
-  description: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  mediaContainer: {
-    marginTop: 5,
-  },
-  mediaImage: {
-    width: "100%",
-    height: 250,
-    borderRadius: 8,
-    marginBottom: 8,
-    resizeMode: "cover",
-  },
-  videoPlaceholder: {
-    width: "100%",
-    height: 200,
-    backgroundColor: "#eee",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  date: {
-    fontSize: 11,
-    color: "#bbb",
-    marginTop: 5,
-    textAlign: "right",
-  },
+  profileName: { fontSize: 20, fontWeight: "700" },
+  profileSub: { fontSize: 14, color: "#888" },
+  statsRow: { flexDirection: "row", marginTop: 20 },
+  statItem: { alignItems: "center", marginHorizontal: 20 },
+  statNumber: { fontSize: 18, fontWeight: "700" },
+  statLabel: { fontSize: 12, color: "#888" },
+  emptyText: { color: "#999", fontSize: 16 },
 });

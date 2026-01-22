@@ -19,6 +19,7 @@ import {
 
 import { useRouter } from "expo-router";
 import Comments from "../../components/comments";
+import PostCard from "../../components/PostCard";
 import endpoints from "../../endpoints/endpoints";
 
 const PRIMARY = "#FFD84D";
@@ -245,12 +246,12 @@ export default function Feed() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         renderItem={({ item }) => (
-          <Post
+          <PostCard
             item={item}
             currentUsername={currentUsername}
             currentUserUuid={currentUserUuid}
             isVisible={item.id === visiblePostId}
-            onRefresh={loadPosts} // <--- Added this line
+            onRefresh={loadPosts}
           />
         )}
       />
@@ -259,7 +260,7 @@ export default function Feed() {
 }
 
 /* ================= POST COMPONENT ================= */
-function Post({
+export function Post({
   item,
   currentUsername,
   currentUserUuid,
@@ -373,7 +374,7 @@ function Post({
 
     // Use router.push for Expo Router
     router.push({
-      pathname: "/profile",
+      pathname: "profile_other",
       params: { user_uuid: user_uuid },
     });
   };

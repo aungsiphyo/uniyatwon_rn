@@ -25,6 +25,8 @@ export default function Create() {
   const [description, setDescription] = useState("");
   const [media, setMedia] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [postType, setPostType] = useState("normal");
+  // "normal" | "lost_found"
 
   const compressImage = async (asset) => {
     // only compress images
@@ -85,6 +87,7 @@ export default function Create() {
     formData.append("Description", description);
     formData.append("Username", userSession.Username);
     formData.append("user_uuid", userSession.user_uuid);
+    formData.append("post_type", postType);
 
     media.forEach((file, i) => {
       const ext = file.uri.split(".").pop();
@@ -198,6 +201,43 @@ export default function Create() {
           </ScrollView>
         )}
       </ScrollView>
+      {/* Post Type Selector */}
+      <View style={styles.postTypeBox}>
+        <TouchableOpacity
+          style={[
+            styles.typeOption,
+            postType === "normal" && styles.typeActive,
+          ]}
+          onPress={() => setPostType("normal")}
+        >
+          <Ionicons
+            name={postType === "normal" ? "checkbox" : "square-outline"}
+            size={18}
+            color={PRIMARY}
+          />
+          <Text style={styles.typeText}>Normal</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.typeOption,
+            postType === "lost_found" && styles.typeActive,
+          ]}
+          onPress={() => setPostType("lost_found")}
+        >
+          <Ionicons
+            name={postType === "lost_found" ? "checkbox" : "square-outline"}
+            size={18}
+            color={PRIMARY}
+          />
+          <Text style={styles.typeText}>Lost & Found</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Lost & Found Hint */}
+      {postType === "lost_found" && (
+        <Text style={styles.lostHint}>🔍 This is a lost & found post</Text>
+      )}
 
       {/* Bottom Fixed Bar */}
       <View style={styles.bottomBar}>
@@ -325,5 +365,37 @@ const styles = StyleSheet.create({
   postText: {
     fontWeight: "700",
     fontSize: 16,
+  },
+  postTypeBox: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 6,
+  },
+
+  typeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+
+  typeActive: {
+    borderColor: PRIMARY,
+    backgroundColor: "#FFF4C2",
+  },
+
+  typeText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  lostHint: {
+    fontSize: 13,
+    color: "#C47A00",
+    marginBottom: 8,
   },
 });
