@@ -19,4 +19,6 @@ export default {
   notifications: BASE_URL + "notifications.php",
   fetchComments: BASE_URL + "fetchcomments.php",
   follow: BASE_URL + "follow.php",
+  savePushToken: BASE_URL + "save_push_token.php",
+  broadcastPush: BASE_URL + "broadcast_push.php",
 };

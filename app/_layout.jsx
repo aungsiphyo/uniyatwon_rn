@@ -7,6 +7,8 @@ import {
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import endpoints from "../endpoints/endpoints";
+import { registerForPushNotificationsAsync } from "../utils/notifications";
 
 function StackLayout() {
   const { userSession, isLoading } = useAuth();
@@ -31,6 +33,49 @@ function StackLayout() {
       router.replace("/(tabs)/feed");
     }
   }, [userSession, segments, isLoading, isMounted, navigationState]);
+
+  // Handle Push Notification Registration
+  useEffect(() => {
+    if (userSession && isMounted) {
+      console.log(
+        "Starting push registration for user:",
+        userSession.user_uuid,
+      );
+      const handleRegistration = async () => {
+        try {
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            console.log("Token received, sending to server:", token);
+
+            const res = await fetch(endpoints.savePushToken, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${userSession.token}`,
+              },
+              body: JSON.stringify({
+                user_uuid: userSession.user_uuid,
+                push_token: token,
+              }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              console.log("Push token successfully saved to DB");
+            } else {
+              console.error("Server failed to save push token:", data.message);
+            }
+          } else {
+            console.log(
+              "No push token returned (likely due to environment/Expo Go).",
+            );
+          }
+        } catch (err) {
+          console.error("Detailed Push Registration Error:", err);
+        }
+      };
+      handleRegistration();
+    }
+  }, [userSession, isMounted]);
 
   if (isLoading || !isMounted || !navigationState?.key) {
     return (

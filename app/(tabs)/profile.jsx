@@ -164,6 +164,19 @@ const MyProfile = () => {
           >
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
+          {userSession?.is_admin === 1 && (
+            <TouchableOpacity
+              style={[
+                styles.editBtn,
+                { backgroundColor: "#000", marginLeft: 10 },
+              ]}
+              onPress={() => router.push("/admin_broadcast")}
+            >
+              <Text style={[styles.editBtnText, { color: "#fff" }]}>
+                Broadcast
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Stats Section */}
