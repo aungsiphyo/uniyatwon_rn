@@ -1,15 +1,16 @@
+import { Ionicons } from "@expo/vector-icons"; // Added Ionicons
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown"; // New Import
 import endpoints from "../../endpoints/endpoints";
@@ -54,16 +55,26 @@ export default function SignupScreen() {
   const [year, setYear] = useState(null);
   const [nrc, setNrc] = useState("");
   const [phone, setPhone] = useState("");
+  const [isTeacher, setIsTeacher] = useState(false); // Added isTeacher state
   const [loading, setLoading] = useState(false);
 
   const submitAlert = async () => {
-    if (!name || !email || !password || !major || !year || !nrc) {
-      Alert.alert("Error", "Please fill all fields");
+    // Basic validation
+    if (!name || !email || !password || !major) {
+      Alert.alert("Error", "Please fill required fields");
+      return;
+    }
+
+    // Student specific validation
+    if (!isTeacher && (!year || !nrc)) {
+      Alert.alert("Error", "Please fill Year of Study and Student ID");
       return;
     }
 
     setLoading(true);
     try {
+      const finalPhone = phone.trim() === "" ? "09" : phone; // Handle optional phone
+
       const res = await fetch(endpoints.signup, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,9 +83,10 @@ export default function SignupScreen() {
           Email: email,
           Password: password,
           Major: major,
-          Year: year,
-          Student_nrc: nrc,
-          Phone: phone,
+          Year: isTeacher ? "Teacher" : year, // Role based value
+          Student_nrc: isTeacher ? "Teacher" : nrc, // Role based value
+          Phone: finalPhone,
+          role: isTeacher ? "teacher" : "student", // Added role field
         }),
       });
 
@@ -138,6 +150,19 @@ export default function SignupScreen() {
         onChangeText={setPassword}
       />
 
+      {/* Teacher Toggle */}
+      <TouchableOpacity
+        style={styles.checkboxRow}
+        onPress={() => setIsTeacher(!isTeacher)}
+      >
+        <Ionicons
+          name={isTeacher ? "checkbox" : "square-outline"}
+          size={24}
+          color={PRIMARY}
+        />
+        <Text style={styles.checkboxLabel}>I'm a teacher</Text>
+      </TouchableOpacity>
+
       {/* NEW MAJOR DROPDOWN */}
       <Text style={styles.label}>Major</Text>
       <Dropdown
@@ -153,28 +178,32 @@ export default function SignupScreen() {
         onChange={(item) => setMajor(item.value)}
       />
 
-      {/* NEW YEAR OF STUDY DROPDOWN */}
-      <Text style={styles.label}>Year of Study</Text>
-      <Dropdown
-        style={styles.dropdown}
-        placeholderStyle={styles.placeholderStyle}
-        selectedTextStyle={styles.selectedTextStyle}
-        data={yearData}
-        maxHeight={300}
-        labelField="label"
-        valueField="value"
-        placeholder="Select Semester"
-        value={year}
-        onChange={(item) => setYear(item.value)}
-      />
+      {!isTeacher && (
+        <>
+          {/* NEW YEAR OF STUDY DROPDOWN */}
+          <Text style={styles.label}>Year of Study</Text>
+          <Dropdown
+            style={styles.dropdown}
+            placeholderStyle={styles.placeholderStyle}
+            selectedTextStyle={styles.selectedTextStyle}
+            data={yearData}
+            maxHeight={300}
+            labelField="label"
+            valueField="value"
+            placeholder="Select Semester"
+            value={year}
+            onChange={(item) => setYear(item.value)}
+          />
 
-      <Text style={styles.label}>Student ID</Text>
-      <TextInput
-        placeholder="3767"
-        style={styles.input}
-        value={nrc}
-        onChangeText={setNrc}
-      />
+          <Text style={styles.label}>Student ID</Text>
+          <TextInput
+            placeholder="3767"
+            style={styles.input}
+            value={nrc}
+            onChangeText={setNrc}
+          />
+        </>
+      )}
 
       <Text style={styles.label}>Phone Number</Text>
       <TextInput
@@ -257,4 +286,16 @@ const styles = StyleSheet.create({
   linkButton: { marginTop: 20, alignItems: "center" },
   linkText: { fontSize: 14, color: "#777" },
   linkHighlight: { color: "#D4AF37", fontWeight: "700" },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#444",
+    marginLeft: 10,
+    fontWeight: "500",
+  },
 });

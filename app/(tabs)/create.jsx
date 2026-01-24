@@ -1,18 +1,18 @@
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import endpoints from "../../endpoints/endpoints";
@@ -26,7 +26,14 @@ export default function Create() {
   const [media, setMedia] = useState([]);
   const [loading, setLoading] = useState(false);
   const [postType, setPostType] = useState("normal");
-  // "normal" | "lost_found"
+  // "normal" | "lost_found" | "announcement"
+
+  // 🛡️ Safety Check: If user is not admin, prevent announcement type
+  useEffect(() => {
+    if (postType === "announcement" && userSession?.is_admin !== 1) {
+      setPostType("normal");
+    }
+  }, [userSession, postType]);
 
   const compressImage = async (asset) => {
     // only compress images
@@ -51,7 +58,7 @@ export default function Create() {
   // ===== PICK MEDIA =====
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // ❌ Changed from .All to .Images
       allowsMultipleSelection: true,
       quality: 0.7, // initial compression
     });
@@ -85,16 +92,19 @@ export default function Create() {
 
     const formData = new FormData();
     formData.append("Description", description);
-    formData.append("Username", userSession.Username);
+    formData.append("type", postType);
     formData.append("user_uuid", userSession.user_uuid);
-    formData.append("post_type", postType);
+    formData.append("Username", userSession.Username);
 
     media.forEach((file, i) => {
-      const ext = file.uri.split(".").pop();
+      let ext = file.uri.split(".").pop().toLowerCase();
+      if (ext === "jpg") ext = "jpeg";
+
       formData.append("media[]", {
         uri: file.uri,
         name: `upload_${Date.now()}_${i}.${ext}`,
-        type: file.type === "video" ? "video/mp4" : `image/${ext}`,
+        type: `image/${ext}`,
+        // type: file.type === "video" ? "video/mp4" : `image/${ext}`, // ❌ Temporarily disabled video
       });
     });
 
@@ -105,17 +115,31 @@ export default function Create() {
         body: formData,
         headers: {
           Authorization: `Bearer ${token}`,
-          "X-Username": userSession.Username, // optional (backend dependent)
+          "X-Username": userSession.Username,
         },
       });
 
+      console.log("HTTP Status:", res.status);
       const responseText = await res.text();
+      console.log("Raw Server Response:", responseText);
+
+      if (!res.ok) {
+        Alert.alert(
+          "Server Error",
+          `Status ${res.status}: ${responseText.substring(0, 200)}`,
+        );
+        return;
+      }
+
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (e) {
-        console.error("Server returned non-JSON:", responseText);
-        throw new Error("Invalid server response");
+        Alert.alert(
+          "JSON Error",
+          `Status ${res.status}. Response: ${responseText.substring(0, 200)}`,
+        );
+        return;
       }
 
       if (data.success) {
@@ -130,11 +154,20 @@ export default function Create() {
           },
         ]);
       } else {
-        Alert.alert("Error", data.message);
+        let errMsg =
+          data.message ||
+          (data.missing ? `Missing field: ${data.missing}` : "Upload failed");
+
+        // If there is extra debug info from the server, show it
+        if (data.debug_ffmpeg) {
+          errMsg += `\n\nDebug Info: ${JSON.stringify(data.debug_ffmpeg)}`;
+        }
+
+        Alert.alert("Post Failed", errMsg);
       }
     } catch (err) {
       console.error("Upload error:", err);
-      Alert.alert("Error", err.message || "Upload failed");
+      Alert.alert("Connection Error", err.message || "Upload failed");
     } finally {
       setLoading(false);
     }
@@ -159,7 +192,16 @@ export default function Create() {
         {/* User Info */}
         <View style={styles.userRow}>
           <Image
-            source={{ uri: "https://i.pravatar.cc/150" }}
+            source={{
+              uri:
+                userSession?.Profile_photo &&
+                userSession.Profile_photo.startsWith("http")
+                  ? userSession.Profile_photo
+                  : `${endpoints.baseURL}${userSession?.Profile_photo || "default.png"}`.replace(
+                      /([^:]\/)\/+/g,
+                      "$1",
+                    ),
+            }}
             style={styles.avatar}
           />
           <View>
@@ -201,49 +243,101 @@ export default function Create() {
           </ScrollView>
         )}
       </ScrollView>
-      {/* Post Type Selector */}
-      <View style={styles.postTypeBox}>
-        <TouchableOpacity
-          style={[
-            styles.typeOption,
-            postType === "normal" && styles.typeActive,
-          ]}
-          onPress={() => setPostType("normal")}
+      {/* 🏷️ Post Type Selector (Chips) */}
+      <View style={styles.postTypeContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.postTypeScroll}
         >
-          <Ionicons
-            name={postType === "normal" ? "checkbox" : "square-outline"}
-            size={18}
-            color={PRIMARY}
-          />
-          <Text style={styles.typeText}>Normal</Text>
-        </TouchableOpacity>
+          {/* Normal */}
+          <TouchableOpacity
+            style={[
+              styles.typeChip,
+              postType === "normal" && styles.chipActive,
+            ]}
+            onPress={() => setPostType("normal")}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={18}
+              color={postType === "normal" ? "#000" : "#666"}
+            />
+            <Text
+              style={[
+                styles.chipText,
+                postType === "normal" && styles.chipTextActive,
+              ]}
+            >
+              Normal
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.typeOption,
-            postType === "lost_found" && styles.typeActive,
-          ]}
-          onPress={() => setPostType("lost_found")}
-        >
-          <Ionicons
-            name={postType === "lost_found" ? "checkbox" : "square-outline"}
-            size={18}
-            color={PRIMARY}
-          />
-          <Text style={styles.typeText}>Lost & Found</Text>
-        </TouchableOpacity>
+          {/* Lost & Found */}
+          <TouchableOpacity
+            style={[
+              styles.typeChip,
+              postType === "lost_found" && styles.chipActive,
+            ]}
+            onPress={() => setPostType("lost_found")}
+          >
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color={postType === "lost_found" ? "#000" : "#666"}
+            />
+            <Text
+              style={[
+                styles.chipText,
+                postType === "lost_found" && styles.chipTextActive,
+              ]}
+            >
+              Lost & Found
+            </Text>
+          </TouchableOpacity>
+
+          {/* Announcement (ADMIN ONLY) */}
+          {userSession?.is_admin === 1 && (
+            <TouchableOpacity
+              style={[
+                styles.typeChip,
+                postType === "announcement" && styles.chipActive,
+              ]}
+              onPress={() => setPostType("announcement")}
+            >
+              <Ionicons
+                name="megaphone-outline"
+                size={18}
+                color={postType === "announcement" ? "#000" : "#666"}
+              />
+              <Text
+                style={[
+                  styles.chipText,
+                  postType === "announcement" && styles.chipTextActive,
+                ]}
+              >
+                Announcement
+              </Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
       </View>
 
       {/* Lost & Found Hint */}
-      {postType === "lost_found" && (
-        <Text style={styles.lostHint}>🔍 This is a lost & found post</Text>
-      )}
+      {/* {postType === "lost_found" && (
+        <View style={styles.hintContainer}>
+          <Text style={styles.lostHint}>🔍 This is a lost & found post</Text>
+        </View>
+      )} */}
 
       {/* Bottom Fixed Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity onPress={pickMedia} style={styles.mediaBtn}>
-          <FontAwesome name="image" size={24} color="#45BD62" />
-        </TouchableOpacity>
+        <View style={styles.bottomLeft}>
+          <TouchableOpacity onPress={pickMedia} style={styles.iconAction}>
+            <Ionicons name="images" size={24} color="#45BD62" />
+            <Text style={styles.iconLabel}>Photo</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={handlePost}
@@ -345,57 +439,93 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: "#eee",
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
     backgroundColor: "#fff",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
   },
-  mediaBtn: {
-    padding: 8,
+  bottomLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f2f5",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  iconLabel: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#444",
   },
   postBtn: {
     backgroundColor: PRIMARY,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
   },
   postText: {
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 16,
+    color: "#000",
   },
-  postTypeBox: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 6,
+  postTypeContainer: {
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
   },
-
-  typeOption: {
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#888",
+    marginLeft: 16,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  postTypeScroll: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  typeChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
+    backgroundColor: "#f0f2f5",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "transparent",
   },
-
-  typeActive: {
-    borderColor: PRIMARY,
+  chipActive: {
     backgroundColor: "#FFF4C2",
+    borderColor: PRIMARY,
   },
-
-  typeText: {
+  chipText: {
     marginLeft: 6,
     fontSize: 14,
     fontWeight: "600",
+    color: "#666",
   },
-
+  chipTextActive: {
+    color: "#000",
+  },
+  hintContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    backgroundColor: "#fff",
+  },
   lostHint: {
     fontSize: 13,
     color: "#C47A00",
-    marginBottom: 8,
+    fontWeight: "600",
   },
 });

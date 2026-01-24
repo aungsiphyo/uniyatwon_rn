@@ -1,9 +1,10 @@
-import { Feather, FontAwesome, Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Video } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -15,34 +16,11 @@ import {
   View,
 } from "react-native";
 import endpoints from "../endpoints/endpoints";
+import { getTimeAgo } from "../utils/time";
 import Comments from "./comments";
 
 const { width, height } = Dimensions.get("window");
 const PRIMARY = "#FFD84D";
-
-// Helper for time formatting
-const getTimeAgo = (dateString) => {
-  if (!dateString || dateString === "Just now") return "Just now";
-  try {
-    let isoString = dateString.replace(" ", "T");
-    if (!isoString.includes("Z") && !isoString.includes("+")) isoString += "Z";
-    const postDate = new Date(isoString);
-    const now = new Date();
-    const diffInSeconds = Math.floor(
-      (now.getTime() - postDate.getTime()) / 1000,
-    );
-    if (diffInSeconds < 60) return "Just now";
-    const minutes = Math.floor(diffInSeconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return postDate.toLocaleDateString();
-  } catch (e) {
-    return "Just now";
-  }
-};
 
 export default function PostCard({
   item,
@@ -50,6 +28,7 @@ export default function PostCard({
   currentUserUuid,
   isVisible,
   onRefresh,
+  onDelete,
 }) {
   const router = useRouter();
 
@@ -120,40 +99,34 @@ export default function PostCard({
     router.push({ pathname: "profile_other", params: { user_uuid } });
   };
   const handleSavePost = async (postId) => {
-    const prev = saved;
-    // Optimistic UI update
-    setSaved(!prev);
+    // 1. Optimistic Update
+    const prevSaved = saved;
+    setSaved(!prevSaved);
     bounce(scaleSave);
 
     try {
       const token = await AsyncStorage.getItem("token");
-
       const res = await fetch(endpoints.savePost, {
         method: "POST",
         headers: {
-          // Essential for PHP to decode the body correctly
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // BODY FIX: Use JSON.stringify instead of new FormData()
-        body: JSON.stringify({
-          post_id: postId,
-        }),
+        body: JSON.stringify({ post_id: postId }),
       });
 
-      // Check if response is empty before parsing to avoid Parse Error
-      const text = await res.text();
-      console.log("SAVE POST RESPONSE:", text);
+      const data = await res.json();
 
-      if (!text) return;
-
-      const data = JSON.parse(text);
-      if (!data.success && data.message !== "Post already saved") {
-        setSaved(prev); // Revert if actual server error
+      if (!data.success) {
+        // 2. Revert if the server failed
+        setSaved(prevSaved);
+      } else {
+        // 3. Sync with actual server state
+        setSaved(data.action === "saved");
       }
     } catch (err) {
       console.error("Save post error:", err);
-      setSaved(prev); // Revert on network failure
+      setSaved(prevSaved); // Revert on network error
     }
   };
 
@@ -165,7 +138,9 @@ export default function PostCard({
           <Image
             source={{
               uri: encodeURI(
-                endpoints.baseURL + (item.Profile_photo || "").trim(),
+                endpoints.baseURL +
+                  (item.Profile_photo || "default.png").trim() +
+                  `?t=${Date.now()}`,
               ),
             }}
             style={styles.postAvatar}
@@ -177,7 +152,27 @@ export default function PostCard({
           </TouchableOpacity>
           <Text style={styles.postTime}>{getTimeAgo(item.Created_at)}</Text>
         </View>
-        <Feather name="more-vertical" size={18} />
+        {item.user_uuid === currentUserUuid && onDelete && (
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                "Delete Post",
+                "Are you sure you want to delete this post?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => onDelete(item.id),
+                  },
+                ],
+              );
+            }}
+            style={{ padding: 5 }}
+          >
+            <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <Text style={styles.postText}>{item.Description}</Text>

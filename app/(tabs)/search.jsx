@@ -1,5 +1,6 @@
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -33,6 +34,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [history, setHistory] = useState([]);
+  const router = useRouter();
 
   useEffect(() => {
     loadUsername();
@@ -54,8 +56,13 @@ export default function Search() {
   const fetchHistory = async () => {
     try {
       const savedUsername = await AsyncStorage.getItem("Username");
+      const token = await AsyncStorage.getItem("token"); // 🔑 Get token
       const res = await fetch(endpoints.searchHistory, {
-        headers: { "X-Username": savedUsername || "" },
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "", // 🔑 Add Authorization
+          "X-Username": savedUsername || "",
+          Accept: "application/json",
+        },
       });
       const data = await res.json();
       if (Array.isArray(data)) setHistory(data);
@@ -68,11 +75,14 @@ export default function Search() {
     if (!text.trim()) return;
     try {
       const savedUsername = await AsyncStorage.getItem("Username");
+      const token = await AsyncStorage.getItem("token"); // 🔑 Get token
       await fetch(endpoints.searchHistory, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "", // 🔑 Add Authorization
           "X-Username": savedUsername || "",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           search_text: text,
@@ -89,9 +99,14 @@ export default function Search() {
   const deleteHistoryItem = async (id) => {
     try {
       const savedUsername = await AsyncStorage.getItem("Username");
+      const token = await AsyncStorage.getItem("token"); // 🔑 Get token
       await fetch(`${endpoints.searchHistory}?id=${id}`, {
         method: "DELETE",
-        headers: { "X-Username": savedUsername || "" },
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "", // 🔑 Add Authorization
+          "X-Username": savedUsername || "",
+          Accept: "application/json",
+        },
       });
       fetchHistory(); // Refresh
     } catch (err) {
@@ -108,8 +123,9 @@ export default function Search() {
     setLoading(true);
     try {
       const savedUsername = await AsyncStorage.getItem("Username");
+      const token = await AsyncStorage.getItem("token"); // 🔑 Get token
       // Optionally save search automatically after successful search fetch
-      // saveSearch(query); 
+      // saveSearch(query);
 
       const res = await fetch(
         `${endpoints.search}?type=${activeTab}&search=${encodeURIComponent(query)}`,
@@ -117,10 +133,11 @@ export default function Search() {
           method: "GET",
           credentials: "include",
           headers: {
+            Authorization: token ? `Bearer ${token}` : "", // 🔑 Add Authorization
             Accept: "application/json",
             "X-Username": savedUsername || "",
           },
-        }
+        },
       );
 
       const data = await res.json();
@@ -141,41 +158,60 @@ export default function Search() {
   };
 
   const onResultPress = (item) => {
-    // Save to history when a result is clicked
     if (item.result_type === "user") {
       saveSearch(item.Username, item.user_uuid, "user");
+      router.push({
+        pathname: "profile_other",
+        params: { user_uuid: item.user_uuid },
+      });
     } else {
       saveSearch(item.Description || "Post", item.id, "post");
+      router.push({
+        pathname: "PostDetail",
+        params: { post_id: item.id },
+      });
     }
-    // Navigate or show detail (logic to be added if needed)
   };
 
   const renderItem = ({ item }) => {
     // If it's a history item
     if (item.id && item.search_text && !item.Username && !item.Description) {
-       return (
-         <View style={styles.historyItem}>
-           <TouchableOpacity 
-             style={styles.historyContent}
-             onPress={() => {
-               setQuery(item.search_text);
-               saveSearch(item.search_text);
-             }}
-           >
-             <Feather name="clock" size={16} color="#888" style={{ marginRight: 12 }} />
-             <Text style={styles.historyText}>{item.search_text}</Text>
-           </TouchableOpacity>
-           <TouchableOpacity onPress={() => deleteHistoryItem(item.id)}>
-             <Feather name="x" size={16} color="#888" />
-           </TouchableOpacity>
-         </View>
-       );
+      return (
+        <View style={styles.historyItem}>
+          <TouchableOpacity
+            style={styles.historyContent}
+            onPress={() => {
+              setQuery(item.search_text);
+              saveSearch(item.search_text);
+            }}
+          >
+            <Feather
+              name="clock"
+              size={16}
+              color="#888"
+              style={{ marginRight: 12 }}
+            />
+            <Text style={styles.historyText}>{item.search_text}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => deleteHistoryItem(item.id)}>
+            <Feather name="x" size={16} color="#888" />
+          </TouchableOpacity>
+        </View>
+      );
     }
 
     // Existing result rendering...
-    if (activeTab === "users" || (activeTab === "all" && item.result_type === "user")) {
-      const avatarUrl = item.Profile_photo 
-        ? encodeURI(endpoints.baseURL + item.Profile_photo.trim())
+    if (
+      activeTab === "users" ||
+      (activeTab === "all" && item.result_type === "user")
+    ) {
+      const avatarUrl = item.Profile_photo
+        ? item.Profile_photo.startsWith("http")
+          ? item.Profile_photo
+          : `${endpoints.baseURL}${item.Profile_photo.trim()}`.replace(
+              /([^:]\/)\/+/g,
+              "$1",
+            )
         : null;
 
       return (
@@ -190,13 +226,20 @@ export default function Search() {
                 </View>
               )}
             </View>
-            
+
             <View style={styles.userInfo}>
-              <Text style={styles.userName} numberOfLines={1}>{item.Username}</Text>
-              <Text style={styles.userEmail} numberOfLines={1}>{item.Email}</Text>
+              <Text style={styles.userName} numberOfLines={1}>
+                {item.Username}
+              </Text>
+              <Text style={styles.userEmail} numberOfLines={1}>
+                {item.Email}
+              </Text>
             </View>
 
-            <TouchableOpacity style={styles.userActionButton}>
+            <TouchableOpacity
+              style={styles.userActionButton}
+              onPress={() => onResultPress(item)}
+            >
               <Text style={styles.userActionText}>View</Text>
             </TouchableOpacity>
           </View>
@@ -233,19 +276,26 @@ export default function Search() {
 
       {/* 🔘 Type Tabs */}
       {!query && (
-         <View style={styles.historyHeader}>
-           <Text style={styles.historyTitle}>Recent Searches</Text>
-         </View>
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>Recent Searches</Text>
+        </View>
       )}
-      
+
       {query.length > 0 && (
         <View style={styles.tabs}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+          >
             {POST_TABS.map((tab) => (
               <TouchableOpacity
                 key={tab.key}
                 onPress={() => setActiveTab(tab.key)}
-                style={[styles.tabButton, activeTab === tab.key && styles.activeTab]}
+                style={[
+                  styles.tabButton,
+                  activeTab === tab.key && styles.activeTab,
+                ]}
               >
                 <Text style={styles.tabText}>{tab.label}</Text>
               </TouchableOpacity>
@@ -257,13 +307,19 @@ export default function Search() {
       {/* 📄 List (Results or History) */}
       <FlatList
         data={query ? results : history}
-        keyExtractor={(item, index) => String(item.id || item.user_uuid || index)}
+        keyExtractor={(item, index) =>
+          String(item.id || item.user_uuid || index)
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         renderItem={renderItem}
         ListFooterComponent={
           loading ? (
-            <ActivityIndicator size="large" color={PRIMARY} style={{ marginTop: 20 }} />
+            <ActivityIndicator
+              size="large"
+              color={PRIMARY}
+              style={{ marginTop: 20 }}
+            />
           ) : null
         }
         ListEmptyComponent={

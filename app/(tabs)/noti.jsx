@@ -13,29 +13,11 @@ import {
     View,
 } from "react-native";
 import endpoints from "../../endpoints/endpoints";
+import { getTimeAgo } from "../../utils/time";
 
 const PRIMARY = "#FFD84D";
 
 /* ===================== HELPERS ===================== */
-const getTimeAgo = (dateString) => {
-  if (!dateString) return "";
-  try {
-    let isoString = dateString.replace(" ", "T");
-    if (!isoString.includes("Z")) isoString += "Z";
-    const postDate = new Date(isoString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - postDate) / 1000);
-
-    if (diffInSeconds < 60) return "Just now";
-    const mins = Math.floor(diffInSeconds / 60);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return postDate.toLocaleDateString();
-  } catch (e) {
-    return "";
-  }
-};
 
 const getFullUrl = (path) => {
   if (!path) return null;

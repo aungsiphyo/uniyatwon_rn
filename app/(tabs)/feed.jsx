@@ -3,24 +3,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Video } from "expo-av";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  SectionList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    FlatList,
+    Image,
+    Modal,
+    ScrollView,
+    SectionList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { useRouter } from "expo-router";
 import Comments from "../../components/comments";
 import PostCard from "../../components/PostCard";
 import endpoints from "../../endpoints/endpoints";
+import { getTimeAgo } from "../../utils/time";
 
 const PRIMARY = "#FFD84D";
 const { width, height } = Dimensions.get("window");
@@ -30,65 +31,6 @@ const POST_TABS = [
   { key: "lost_found", label: "Lost & Found" },
   { key: "announcement", label: "Announcements" },
 ];
-
-// const getTimeAgo = (dateString) => {
-//   const now = new Date();
-//   const postDate = new Date(dateString.replace(" ", "T")); // Handle SQL format
-//   const diffInSeconds = Math.floor((now - postDate) / 1000);
-
-//   if (diffInSeconds < 60) return "Just now";
-
-//   const minutes = Math.floor(diffInSeconds / 60);
-//   if (minutes < 60) return `${minutes}m ago`;
-
-//   const hours = Math.floor(minutes / 60);
-//   if (hours < 24) return `${hours}h ago`;
-
-//   const days = Math.floor(hours / 24);
-//   if (days < 7) return `${days}d ago`;
-
-//   return postDate.toLocaleDateString(); // Fallback to date
-// };
-
-const getTimeAgo = (dateString) => {
-  if (!dateString || dateString === "Just now") return "Just now";
-
-  try {
-    // 1. Format the string for ISO compatibility
-    let isoString = dateString.replace(" ", "T");
-
-    // 2. If your DB doesn't save with a 'Z', it might be UTC.
-    // Adding 'Z' tells JS to treat the input as UTC time.
-    if (!isoString.includes("Z") && !isoString.includes("+")) {
-      isoString += "Z";
-    }
-
-    const postDate = new Date(isoString);
-    const now = new Date();
-
-    // Calculate difference in seconds
-    const diffInSeconds = Math.floor(
-      (now.getTime() - postDate.getTime()) / 1000,
-    );
-
-    // FIX: If the time is in the future (server/phone clock mismatch) or < 1 min
-    if (diffInSeconds < 60) return "Just now";
-
-    const minutes = Math.floor(diffInSeconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-
-    return postDate.toLocaleDateString();
-  } catch (e) {
-    console.error("Date parsing error:", e);
-    return "Just now";
-  }
-};
 
 export default function Feed() {
   const [posts, setPosts] = useState([]);
@@ -143,7 +85,7 @@ export default function Feed() {
           post_id: postId,
           user_uuid: p.User_uuid || p.user_uuid,
           Username: p.Username || p.user_name || "Unknown",
-          Profile_photo: p.Profile_photo || p.profile || "default.png",
+          Profile_photo: p.Profile_photo || "default.png",
           Description: p.Description || p.description || "",
           type: p.type || "normal",
           media: Array.isArray(p.media) ? p.media : [],
@@ -390,7 +332,9 @@ export function Post({
           <Image
             source={{
               uri: encodeURI(
-                endpoints.baseURL + (item.Profile_photo || "").trim(),
+                endpoints.baseURL +
+                  (item.Profile_photo || "default.png").trim() +
+                  `?t=${Date.now()}`,
               ),
             }}
             style={styles.postAvatar}

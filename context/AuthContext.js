@@ -1,11 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 
 const AuthContext = createContext({
   signIn: (token, username) => {},
   signOut: () => {},
   userSession: null,
+  updateSession: (newData) => {},
   isLoading: true,
 });
 
@@ -18,65 +19,99 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const loadStorageData = async () => {
       try {
-        let userUuid, username;
-        
-        if (Platform.OS === 'web') {
-          userUuid = localStorage.getItem('user_uuid');
-          username = localStorage.getItem('Username');
+        let userUuid, username, token, isAdmin;
+
+        if (Platform.OS === "web") {
+          userUuid = localStorage.getItem("user_uuid");
+          username = localStorage.getItem("Username");
+          token = localStorage.getItem("token");
+          isAdmin = localStorage.getItem("is_admin");
         } else {
-          userUuid = await AsyncStorage.getItem('user_uuid');
-          username = await AsyncStorage.getItem('Username');
+          userUuid = await AsyncStorage.getItem("user_uuid");
+          username = await AsyncStorage.getItem("Username");
+          token = await AsyncStorage.getItem("token");
+          isAdmin = await AsyncStorage.getItem("is_admin");
         }
 
         if (userUuid && username) {
-          console.log("AuthContext: Session found", { username });
-          setUserSession({ user_uuid: userUuid, Username: username });
+          console.log("AuthContext: Session found", { username, isAdmin });
+          setUserSession({
+            user_uuid: userUuid,
+            Username: username,
+            token,
+            is_admin: isAdmin ? parseInt(isAdmin) : 0,
+          });
         } else {
           console.log("AuthContext: No session found");
         }
       } catch (e) {
-        console.error('Failed to load login state', e);
+        console.error("Failed to load login state", e);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // TEMPORARY: Clear session for testing the new auth flow
-    AsyncStorage.clear(); 
-    if (Platform.OS === 'web') {
-      localStorage.clear();
-    }
-
     loadStorageData();
   }, []);
 
-  const signIn = async (userUuid, username) => {
+  const signIn = async (userUuid, username, token, isAdmin) => {
     try {
-        if (Platform.OS === 'web') {
-            localStorage.setItem('user_uuid', userUuid);
-            localStorage.setItem('Username', username);
-        } else {
-            await AsyncStorage.setItem('user_uuid', userUuid);
-            await AsyncStorage.setItem('Username', username);
-        }
-        setUserSession({ user_uuid: userUuid, Username: username });
+      if (Platform.OS === "web") {
+        localStorage.setItem("user_uuid", userUuid);
+        localStorage.setItem("Username", username);
+        localStorage.setItem("token", token);
+        localStorage.setItem("is_admin", isAdmin.toString());
+      } else {
+        await AsyncStorage.setItem("user_uuid", userUuid);
+        await AsyncStorage.setItem("Username", username);
+        await AsyncStorage.setItem("token", token);
+        await AsyncStorage.setItem("is_admin", isAdmin.toString());
+      }
+      setUserSession({
+        user_uuid: userUuid,
+        Username: username,
+        token,
+        is_admin: parseInt(isAdmin),
+        Profile_photo: "default.png", // Initial default
+      });
     } catch (e) {
-        console.error("Sign in error", e);
+      console.error("Sign in error", e);
     }
   };
 
   const signOut = async () => {
     try {
-        if (Platform.OS === 'web') {
-            localStorage.removeItem('user_uuid');
-            localStorage.removeItem('Username');
-        } else {
-            await AsyncStorage.removeItem('user_uuid');
-            await AsyncStorage.removeItem('Username');
-        }
-        setUserSession(null);
+      if (Platform.OS === "web") {
+        localStorage.removeItem("user_uuid");
+        localStorage.removeItem("Username");
+        localStorage.removeItem("token");
+        localStorage.removeItem("is_admin");
+      } else {
+        await AsyncStorage.removeItem("user_uuid");
+        await AsyncStorage.removeItem("Username");
+        await AsyncStorage.removeItem("token");
+        await AsyncStorage.removeItem("is_admin");
+      }
+      setUserSession(null);
     } catch (e) {
-        console.error("Sign out error", e);
+      console.error("Sign out error", e);
+    }
+  };
+
+  const updateSession = async (newData) => {
+    try {
+      const updated = { ...userSession, ...newData };
+      setUserSession(updated);
+
+      // Persist changes
+      if (newData.Username)
+        await AsyncStorage.setItem("Username", newData.Username);
+      if (newData.Profile_photo)
+        await AsyncStorage.setItem("Profile_photo", newData.Profile_photo);
+      if (newData.is_admin !== undefined)
+        await AsyncStorage.setItem("is_admin", newData.is_admin.toString());
+    } catch (e) {
+      console.error("Update session error", e);
     }
   };
 
@@ -85,6 +120,7 @@ export function AuthProvider({ children }) {
       value={{
         signIn,
         signOut,
+        updateSession,
         userSession,
         isLoading,
       }}

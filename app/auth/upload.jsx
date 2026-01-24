@@ -3,14 +3,14 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import endpoints from "../../endpoints/endpoints";
@@ -27,7 +27,7 @@ export default function Upload() {
   // ===== PICK MEDIA =====
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // ❌ Changed from .All to .Images
       allowsMultipleSelection: true,
       quality: 1,
     });
@@ -45,7 +45,8 @@ export default function Upload() {
   // ===== HANDLE POST =====
   const handlePost = async () => {
     if (!userSession) return Alert.alert("Error", "Not logged in");
-    if (!description && media.length === 0) return Alert.alert("Error", "Write something or add media");
+    if (!description && media.length === 0)
+      return Alert.alert("Error", "Write something or add media");
 
     const formData = new FormData();
     formData.append("Description", description);
@@ -57,7 +58,8 @@ export default function Upload() {
       formData.append("media[]", {
         uri: file.uri,
         name: `upload_${Date.now()}_${i}.${ext}`,
-        type: file.type === "video" ? "video/mp4" : `image/${ext}`,
+        type: `image/${ext}`,
+        // type: file.type === "video" ? "video/mp4" : `image/${ext}`, // ❌ Temporarily disabled video
       });
     });
 
@@ -90,7 +92,10 @@ export default function Upload() {
       }
     } catch (err) {
       console.error("Upload error:", err);
-      Alert.alert("Error", err.message || "Upload failed. Please check your connection.");
+      Alert.alert(
+        "Error",
+        err.message || "Upload failed. Please check your connection.",
+      );
     } finally {
       setLoading(false);
     }
@@ -107,19 +112,21 @@ export default function Upload() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView 
-        style={styles.scrollContent} 
+      <ScrollView
+        style={styles.scrollContent}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
         {/* User Info */}
         <View style={styles.userRow}>
-          <Image 
-            source={{ uri: "https://i.pravatar.cc/150" }} 
-            style={styles.avatar} 
+          <Image
+            source={{ uri: "https://i.pravatar.cc/150" }}
+            style={styles.avatar}
           />
           <View>
-            <Text style={styles.username}>{userSession?.Username || "User"}</Text>
+            <Text style={styles.username}>
+              {userSession?.Username || "User"}
+            </Text>
             <Text style={styles.privacy}>Public</Text>
           </View>
         </View>
@@ -136,11 +143,18 @@ export default function Upload() {
 
         {/* Preview Container */}
         {media.length > 0 && (
-          <ScrollView horizontal style={styles.previewScroll} showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            style={styles.previewScroll}
+            showsHorizontalScrollIndicator={false}
+          >
             {media.map((file, index) => (
               <View key={index} style={styles.previewWrapper}>
                 <Image source={{ uri: file.uri }} style={styles.preview} />
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removeMedia(index)}>
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => removeMedia(index)}
+                >
                   <Ionicons name="close" size={16} color="white" />
                 </TouchableOpacity>
               </View>
@@ -154,10 +168,10 @@ export default function Upload() {
         <TouchableOpacity onPress={pickMedia} style={styles.mediaBtn}>
           <FontAwesome name="image" size={24} color="#45BD62" />
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          onPress={handlePost} 
-          style={[styles.postBtn, { opacity: loading ? 0.6 : 1 }]} 
+
+        <TouchableOpacity
+          onPress={handlePost}
+          style={[styles.postBtn, { opacity: loading ? 0.6 : 1 }]}
           disabled={loading}
         >
           <Text style={styles.postText}>{loading ? "Posting..." : "Post"}</Text>
@@ -277,4 +291,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -11,8 +12,6 @@ import {
     View,
 } from "react-native";
 import endpoints from "../endpoints/endpoints";
-// FIXED: Changed "Post" to "post" to match your actual file name
-import Post from "../components/post";
 
 const PRIMARY = "#FFD84D";
 
@@ -22,6 +21,7 @@ export default function PostDetail() {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentUsername, setCurrentUsername] = useState(null);
+  const [currentUuid, setCurrentUuid] = useState(null);
 
   useEffect(() => {
     fetchSinglePost();
@@ -32,7 +32,9 @@ export default function PostDetail() {
       setLoading(true);
       const token = await AsyncStorage.getItem("token");
       const savedUsername = await AsyncStorage.getItem("username");
+      const savedUuid = await AsyncStorage.getItem("user_uuid");
       setCurrentUsername(savedUsername);
+      setCurrentUuid(savedUuid);
 
       const res = await fetch(`${endpoints.fetchposts}?post_id=${post_id}`, {
         headers: {
@@ -72,6 +74,32 @@ export default function PostDetail() {
     }
   };
 
+  const handleDeletePost = async (postId) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await fetch(endpoints.deletePost, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ Reported_post_id: postId }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        Alert.alert("Success", "Post deleted successfully", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      } else {
+        Alert.alert("Error", data.message || "Failed to delete post");
+      }
+    } catch (err) {
+      console.error("Delete Error:", err);
+      Alert.alert("Error", "Something went wrong while deleting");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -90,7 +118,14 @@ export default function PostDetail() {
             style={{ marginTop: 50 }}
           />
         ) : post ? (
-          <Post item={post} currentUsername={currentUsername} />
+          <PostCard
+            item={post}
+            currentUsername={currentUsername}
+            currentUserUuid={currentUuid}
+            isVisible={true}
+            onRefresh={fetchSinglePost}
+            onDelete={handleDeletePost}
+          />
         ) : (
           <Text style={styles.errorText}>
             Post not found or has been deleted.
