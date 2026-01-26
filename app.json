@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "uni-yatwoon",
-    "slug": "uni-yatwoon",
-    "version": "1.0.0",
+    "name": "Uni Yatwon",
+    "slug": "uni-yatwon",
+    "version": "1.0.5",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/uniyatwon.png",
     "scheme": "uniyatwoon",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,9 +16,9 @@
       "package": "com.uniyatwoon.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/logo1.png",
+        "foregroundImage": "./assets/images/uniyatwon.png",
         "backgroundImage": "./assets/images/6.png",
-        "monochromeImage": "./assets/images/icon.png"
+        "monochromeImage": "./assets/images/uniyatwon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
