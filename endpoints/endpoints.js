@@ -12,6 +12,7 @@ export default {
   likePost: BASE_URL + "likepost.php",
   fetchLikeUsers: BASE_URL + "fetchlikeusers.php",
   savePost: BASE_URL + "savedposts.php",
+  fetchSavedPosts: BASE_URL + "fetchsavedposts.php",
   profileMe: BASE_URL + "profile.php",
   profileOther: BASE_URL + "profile_other.php",
   editProfile: BASE_URL + "editprofile.php",
@@ -21,4 +22,5 @@ export default {
   follow: BASE_URL + "follow.php",
   savePushToken: BASE_URL + "save_push_token.php",
   broadcastPush: BASE_URL + "broadcast_push.php",
+  deletePost: BASE_URL + "deletepost.php",
 };

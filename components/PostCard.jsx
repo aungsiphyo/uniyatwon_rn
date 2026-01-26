@@ -149,17 +149,23 @@ export default function PostCard({
     }
   };
 
+  console.log("Delete Icon Debug:", {
+    postUserUuid: item.user_uuid,
+    currentUserUuid,
+    onDeleteExists: !!onDelete,
+  });
+
   return (
     <View style={styles.post}>
       <View style={styles.postInner}>
-        {onDelete && item.user_uuid === currentUserUuid && (
+        {/* {onDelete && item.user_uuid === currentUserUuid && (
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => onDelete(item.id)}
           >
             <Ionicons name="trash-outline" size={18} color="#fff" />
           </TouchableOpacity>
-        )}
+        )} */}
         {/* HEADER */}
         <View style={styles.postHeader}>
           <TouchableOpacity onPress={() => handleViewProfile(item.user_uuid)}>
@@ -167,8 +173,7 @@ export default function PostCard({
               source={{
                 uri: encodeURI(
                   endpoints.baseURL +
-                    (item.Profile_photo || "default.png").trim() +
-                    `?t=${Date.now()}`,
+                    (item.Profile_photo || "default.png").trim(),
                 ),
               }}
               style={styles.postAvatar}
@@ -180,7 +185,7 @@ export default function PostCard({
             </TouchableOpacity>
             <Text style={styles.postTime}>{getTimeAgo(item.Created_at)}</Text>
           </View>
-          {item.user_uuid === currentUserUuid && onDelete && (
+          {onDelete && item.user_uuid === currentUserUuid && (
             <TouchableOpacity
               onPress={() => {
                 Alert.alert(

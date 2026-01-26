@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,6 +27,7 @@ const MyProfile = () => {
   const [deleting, setDeleting] = useState(false);
   const [myInfo, setMyInfo] = useState({ uuid: null, name: null });
   const [refreshKey, setRefreshKey] = useState(Date.now());
+  const [activeProfileTab, setActiveProfileTab] = useState("posts");
 
   const fetchProfile = async () => {
     try {
@@ -35,43 +37,92 @@ const MyProfile = () => {
       const name = await AsyncStorage.getItem("Username");
       setMyInfo({ uuid, name });
 
-      const res = await fetch(endpoints.profileMe, {
-        method: "GET", // Reverting to GET as profile.php reads no body
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "User-Agent": "UniyatwoonApp/1.0", // Adding UA to bypass stricter firewalls
-        },
-      });
+      let url = endpoints.profileMe;
+      let res;
 
-      const text = await res.text();
-      console.log("Profile Fetch Response:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error("JSON Parse Error:", e, "Raw Text:", text);
-        // Alert.alert("Error", "Failed to load profile data.");
-        return;
-      }
-
-      if (data && data.posts) {
-        const normalized = data.posts.map((p) => ({
-          ...p,
-          id: p.id,
-          post_id: p.id,
-          like_count: parseInt(p.like_count || 0),
-          is_liked: !!(p.is_liked == 1 || p.is_liked === true),
-          media: Array.isArray(p.media) ? p.media : [],
-        }));
-
-        setUserProfile({
-          isOwnProfile: !!data.isOwnProfile,
-          posts: normalized,
-          userInfo: data.user || (normalized.length > 0 ? normalized[0] : null),
+      if (activeProfileTab === "saved") {
+        // Fetch saved posts
+        res = await fetch(endpoints.fetchSavedPosts, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "User-Agent": "UniyatwoonApp/1.0",
+          },
         });
-        setRefreshKey(Date.now());
+
+        const text = await res.text();
+        console.log("Saved Posts Response:", text);
+
+        let data;
+        if (!text || text.trim() === "") {
+          data = [];
+        } else {
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            console.error("JSON Parse Error:", e, "Raw Text:", text);
+            return;
+          }
+        }
+
+        if (Array.isArray(data)) {
+          const normalized = data.map((p) => ({
+            ...p,
+            id: p.post_id, // Use post_id as id for PostCard
+            user_uuid: p.user_uuid,
+            like_count: parseInt(p.like_count || 0),
+            is_liked: !!(p.is_liked == 1 || p.is_liked === true),
+            media: Array.isArray(p.media) ? p.media : [],
+          }));
+
+          setUserProfile((prev) => ({
+            ...prev,
+            posts: normalized, // Update only posts
+          }));
+          setRefreshKey(Date.now());
+        }
+      } else {
+        // Fetch user posts (existing logic)
+        res = await fetch(endpoints.profileMe, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "User-Agent": "UniyatwoonApp/1.0",
+          },
+        });
+
+        const text = await res.text();
+        console.log("Profile Fetch Response:", text);
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error("JSON Parse Error:", e, "Raw Text:", text);
+          return;
+        }
+
+        if (data && data.posts) {
+          const normalized = data.posts.map((p) => ({
+            ...p,
+            id: p.id,
+            user_uuid:
+              p.user_uuid || p.User_uuid || p.author_uuid || data.user?.uuid,
+            like_count: parseInt(p.like_count || 0),
+            is_liked: !!(p.is_liked == 1 || p.is_liked === true),
+            media: Array.isArray(p.media) ? p.media : [],
+          }));
+
+          setUserProfile({
+            isOwnProfile: !!data.isOwnProfile,
+            posts: normalized,
+            userInfo:
+              data.user || (normalized.length > 0 ? normalized[0] : null),
+          });
+          setRefreshKey(Date.now());
+        }
       }
     } catch (err) {
       console.error("Profile Fetch Error:", err);
@@ -84,16 +135,20 @@ const MyProfile = () => {
     try {
       setDeleting(true);
       const token = await AsyncStorage.getItem("token");
+      console.log("Deleting post with ID:", postId);
+      console.log("Request Payload:", { post_id: postId });
+      console.log("Delete Post Endpoint:", endpoints.deletePost);
       const res = await fetch(endpoints.deletePost, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ Reported_post_id: postId }),
+        body: JSON.stringify({ post_id: postId }),
       });
 
       const data = await res.json();
+      console.log("Full Delete Post Response:", data);
       if (data.success) {
         // Optimistic UI update or just re-fetch
         setUserProfile((prev) => ({
@@ -130,6 +185,11 @@ const MyProfile = () => {
       fetchProfile();
     }, []),
   );
+
+  // Refetch when active tab changes
+  useEffect(() => {
+    fetchProfile();
+  }, [activeProfileTab]);
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -199,12 +259,49 @@ const MyProfile = () => {
 
         {/* Stats Section */}
         <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {userProfile?.posts?.length || 0}
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeProfileTab === "posts" && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveProfileTab("posts")}
+          >
+            <Ionicons
+              name="images-outline"
+              size={24}
+              color={activeProfileTab === "posts" ? PRIMARY : "#999"}
+            />
+            <Text
+              style={[
+                styles.tabButtonLabel,
+                activeProfileTab === "posts" && styles.tabButtonLabelActive,
+              ]}
+            >
+              Posts
             </Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeProfileTab === "saved" && styles.tabButtonActive,
+            ]}
+            onPress={() => setActiveProfileTab("saved")}
+          >
+            <Ionicons
+              name="bookmark-outline"
+              size={24}
+              color={activeProfileTab === "saved" ? PRIMARY : "#999"}
+            />
+            <Text
+              style={[
+                styles.tabButtonLabel,
+                activeProfileTab === "saved" && styles.tabButtonLabelActive,
+              ]}
+            >
+              Saved
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -221,42 +318,53 @@ const MyProfile = () => {
   }
 
   return (
-    <View style={styles.root}>
-      <FlatList
-        data={userProfile?.posts || []}
-        keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={{ paddingBottom: 50 }}
-        showsVerticalScrollIndicator={false}
-        onRefresh={fetchProfile}
-        refreshing={loading}
-        renderItem={({ item }) => (
-          <PostCard
-            item={item}
-            isVisible={true}
-            onRefresh={fetchProfile}
-            onDelete={handleDeletePost}
-            currentUserUuid={myInfo.uuid}
-            currentUsername={myInfo.name}
-          />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.root}>
+        <FlatList
+          data={userProfile?.posts || []}
+          keyExtractor={(item) => item.id.toString()}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={{ paddingBottom: 50 }}
+          showsVerticalScrollIndicator={false}
+          onRefresh={fetchProfile}
+          refreshing={loading}
+          renderItem={({ item }) => {
+            const canDelete = activeProfileTab === "posts";
+            console.log("PostCard Render:", {
+              postUserUuid: item.user_uuid,
+              currentUserUuid: myInfo.uuid,
+            });
+            return (
+              <PostCard
+                item={item}
+                isVisible={true}
+                onRefresh={fetchProfile}
+                onDelete={canDelete ? handleDeletePost : null}
+                currentUserUuid={myInfo.uuid}
+                currentUsername={myInfo.name}
+              />
+            );
+          }}
+          ListEmptyComponent={
+            !loading && (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="documents-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {activeProfileTab === "posts"
+                    ? "You haven't posted anything yet."
+                    : "You haven't saved any posts yet."}
+                </Text>
+              </View>
+            )
+          }
+        />
+        {deleting && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={PRIMARY} />
+          </View>
         )}
-        ListEmptyComponent={
-          !loading && (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="documents-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>
-                You haven't posted anything yet.
-              </Text>
-            </View>
-          )
-        }
-      />
-      {deleting && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={PRIMARY} />
-        </View>
-      )}
-    </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -264,6 +372,9 @@ export default MyProfile;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#fff" },
+  safeArea: {
+    flex: 1,
+  },
   center: {
     flex: 1,
     justifyContent: "center",
@@ -374,7 +485,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-around", // Change to space-around for even spacing
     width: "100%",
     marginTop: 25,
     paddingVertical: 15,
@@ -382,18 +493,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
   },
-  statItem: {
+  tabButton: {
     alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 15,
   },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#000",
+  tabButtonActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: PRIMARY,
   },
-  statLabel: {
+  tabButtonLabel: {
     fontSize: 12,
-    color: "#888",
-    marginTop: 2,
+    color: "#999",
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  tabButtonLabelActive: {
+    color: PRIMARY,
+    fontWeight: "700",
   },
   sectionDivider: {
     height: 12,

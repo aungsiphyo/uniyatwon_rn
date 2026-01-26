@@ -34,11 +34,22 @@ const POST_TABS = [
 
 export default function Feed() {
   const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserUuid, setCurrentUserUuid] = useState(null);
   const [activeTab, setActiveTab] = useState("normal");
   const [visiblePostId, setVisiblePostId] = useState(null);
+  // ✅ Admin state at top level
+  const [isAdmin, setIsAdmin] = useState(null); // not false
+
+  // Load admin once
+  useEffect(() => {
+    AsyncStorage.getItem("is_admin").then((value) => {
+      setIsAdmin(value === "1");
+    });
+  }, []);
 
   const viewabilityConfig = {
     itemVisiblePercentThreshold: 60, // must be at least 60% visible
@@ -51,19 +62,26 @@ export default function Feed() {
   }).current;
 
   // ================= FETCH LOGIC (JWT & Normalization) =================
+  const LIMIT = 10;
+
   const loadPosts = async () => {
+    if (loading || !hasMore || isAdmin === null) return;
+
     setLoading(true);
-    // Note: Removed setPosts([]) here to prevent "flicker" during refreshes
+
     try {
       const savedUsername = await AsyncStorage.getItem("username");
       const savedUuid = await AsyncStorage.getItem("user_uuid");
+      const token = await AsyncStorage.getItem("token");
 
       setCurrentUsername(savedUsername);
       setCurrentUserUuid(savedUuid);
 
-      const token = await AsyncStorage.getItem("token");
+      const url = isAdmin
+        ? `${endpoints.fetchposts}?type=${activeTab}`
+        : `${endpoints.fetchposts}?type=${activeTab}&page=${page}`;
 
-      const res = await fetch(`${endpoints.fetchposts}?type=${activeTab}`, {
+      const res = await fetch(url, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
           "X-Username": savedUsername || "",
@@ -71,12 +89,18 @@ export default function Feed() {
         },
       });
 
-      const data = await res.json();
-      const postsArray = Array.isArray(data)
-        ? data
-        : Array.isArray(data.posts)
-          ? data.posts
-          : [];
+      const text = await res.text();
+      console.log("RAW RESPONSE:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.log("JSON parse failed:", e);
+        return;
+      }
+
+      const postsArray = Array.isArray(data?.posts) ? data.posts : [];
 
       const fixed = postsArray.map((p) => {
         const postId = p.id || p.post_id;
@@ -98,19 +122,79 @@ export default function Feed() {
         };
       });
 
-      setPosts(fixed);
+      // 🔥 Admin loads once only
+      if (isAdmin) {
+        setHasMore(false);
+      } else {
+        // 🔥 Normal users: stop only when less than LIMIT received
+        if (fixed.length < LIMIT) {
+          setHasMore(false);
+        }
+      }
+
+      // 🔥 Merge without duplicates
+      setPosts((prev) => {
+        const map = new Map();
+        [...(page === 1 ? [] : prev), ...fixed].forEach((p) => {
+          map.set(p.id, p);
+        });
+        return Array.from(map.values());
+      });
     } catch (err) {
-      console.error("Fetch posts error:", err);
+      console.log("Fetch posts error:", err);
       setPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Keep the useEffect but just call the function
   useEffect(() => {
+    if (isAdmin === null) return; // ⛔ WAIT until admin is loaded
     loadPosts();
-  }, [activeTab]);
+  }, [page, isAdmin]);
+  useEffect(() => {
+    if (isAdmin === null) return;
+
+    setPosts([]);
+    setPage(1);
+    setHasMore(true);
+  }, [activeTab, isAdmin]);
+
+  const handleDeletePost = async (postId) => {
+    try {
+      setDeleting(true);
+      const token = await AsyncStorage.getItem("token");
+      console.log("Deleting post with ID:", postId);
+      console.log("Request Payload:", { Reported_post_id: postId });
+      console.log("Delete Post Endpoint:", endpoints.deletePost);
+      const res = await fetch(endpoints.deletePost, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ Reported_post_id: postId }),
+      });
+
+      const data = await res.json();
+      console.log("Full Delete Post Response:", data);
+      if (data.success) {
+        // Optimistic UI update or just re-fetch
+        setUserProfile((prev) => ({
+          ...prev,
+          posts: prev.posts.filter((p) => p.id !== postId),
+        }));
+        Alert.alert("Success", "Post deleted successfully");
+      } else {
+        Alert.alert("Error", data.message || "Failed to delete post");
+      }
+    } catch (err) {
+      console.error("Delete Error:", err);
+      Alert.alert("Error", "Something went wrong while deleting");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // const renderStories = () => (
   //   <FlatList
@@ -170,12 +254,23 @@ export default function Feed() {
 
       {/* ================= FEED ================= */}
       <SectionList
-        sections={[{ data: posts || [] }]}
+        sections={[
+          {
+            key: activeTab, // 👈 important
+            data: posts || [],
+          },
+        ]}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingBottom: 100 }}
         // ListHeaderComponent={renderStories}
-        renderSectionHeader={renderTabs}
+        renderSectionHeader={() => renderTabs(activeTab, setActiveTab)}
         stickySectionHeadersEnabled={true}
+        onEndReached={() => {
+          if (!loading && hasMore) {
+            setPage((prev) => prev + 1);
+          }
+        }}
+        onEndReachedThreshold={0.6}
         ListFooterComponent={
           loading ? (
             <ActivityIndicator
@@ -183,6 +278,10 @@ export default function Feed() {
               color={PRIMARY}
               style={{ marginTop: 20 }}
             />
+          ) : !hasMore ? (
+            <Text style={{ textAlign: "center", padding: 16, color: "#999" }}>
+              No more posts...
+            </Text>
           ) : null
         }
         onViewableItemsChanged={onViewableItemsChanged}
@@ -193,7 +292,11 @@ export default function Feed() {
             currentUsername={currentUsername}
             currentUserUuid={currentUserUuid}
             isVisible={item.id === visiblePostId}
-            onRefresh={loadPosts}
+            onRefresh={() => {
+              setPosts([]);
+              setPage(1);
+              setHasMore(true);
+            }}
           />
         )}
       />

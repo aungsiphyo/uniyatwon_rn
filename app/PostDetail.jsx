@@ -1,16 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import PostCard from "../components/PostCard"; // Import PostCard
 import endpoints from "../endpoints/endpoints";
 
 const PRIMARY = "#FFD84D";
@@ -25,9 +26,9 @@ export default function PostDetail() {
 
   useEffect(() => {
     fetchSinglePost();
-  }, [post_id]);
+  }, [post_id, fetchSinglePost]); // Added fetchSinglePost to dependency array
 
-  const fetchSinglePost = async () => {
+  const fetchSinglePost = useCallback(async () => {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("token");
@@ -47,7 +48,7 @@ export default function PostDetail() {
       const postsArray = data.posts || data;
 
       // Find the specific post
-      const foundPost = postsArray.find((p) => (p.id || p.post_id) == post_id);
+      const foundPost = postsArray.find((p) => (p.id || p.post_id) === post_id); // Replaced == with ===
 
       if (foundPost) {
         const fixed = {
@@ -61,8 +62,8 @@ export default function PostDetail() {
           Created_at:
             foundPost.Created_at || foundPost.created_at || "Just now",
           like_count: parseInt(foundPost.like_count || 0),
-          is_liked: !!(foundPost.is_liked == 1),
-          is_saved: !!(foundPost.is_saved == 1),
+          is_liked: !!(foundPost.is_liked === 1), // Replaced == with ===
+          is_saved: !!(foundPost.is_saved === 1), // Replaced == with ===
           comments: Array.isArray(foundPost.comments) ? foundPost.comments : [],
         };
         setPost(fixed);
@@ -72,7 +73,7 @@ export default function PostDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [post_id]);
 
   const handleDeletePost = async (postId) => {
     try {

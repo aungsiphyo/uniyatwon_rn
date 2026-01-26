@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -63,6 +64,10 @@ export default function LoginScreen() {
         data.token,
         Number(data.is_admin),
       );
+
+      // Save token to AsyncStorage
+      await AsyncStorage.setItem("token", data.token);
+      console.log("TOKEN SAVED:", data.token);
 
       Alert.alert("Success", "Login successful");
     } catch (error) {
