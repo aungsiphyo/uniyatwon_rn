@@ -3,14 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import PostCard from "../components/PostCard";
 import endpoints from "../endpoints/endpoints";
@@ -67,7 +67,11 @@ export default function OtherProfile() {
         }
       }
 
-      setFollowed(data.isFollowing === true || data.isFollowing === 1);
+      // Check multiple potential keys for follow status to be safe
+      const isFollowing = data.isFollowing || data.is_following || false;
+      setFollowed(
+        isFollowing === true || isFollowing === 1 || isFollowing === "1",
+      );
     } catch (err) {
       console.error("Profile Fetch Error:", err);
     } finally {

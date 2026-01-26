@@ -3,18 +3,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Video } from "expo-av";
 import { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    SectionList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { useRouter } from "expo-router";
@@ -229,6 +229,7 @@ export function Post({
 
   const flatListRef = useRef();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [modalMuted, setModalMuted] = useState(true);
   const feedVideoRef = useRef(null);
   const firstVideoRef = useRef(null);
   const isMounted = useRef(true);
@@ -270,16 +271,16 @@ export function Post({
   // ===== VIEWER VIDEO PLAYBACK CONTROL =====
   useEffect(() => {
     const controlViewerPlayback = async () => {
-      if (!viewerVisible || !firstVideoRef.current || !isMounted.current)
-        return;
+      if (!firstVideoRef.current || !isMounted.current) return;
 
       try {
-        if (media[0]?.Media_type === "video") {
-          setTimeout(async () => {
-            if (firstVideoRef.current && isMounted.current) {
-              await firstVideoRef.current.playAsync();
-            }
-          }, 200);
+        if (viewerVisible && media[0]?.Media_type === "video") {
+          await firstVideoRef.current.setStatusAsync({
+            shouldPlay: true,
+            isMuted: modalMuted,
+          });
+        } else if (!viewerVisible && firstVideoRef.current) {
+          await firstVideoRef.current.setStatusAsync({ shouldPlay: false });
         }
       } catch (err) {
         console.warn("Viewer video control error:", err);
@@ -289,7 +290,9 @@ export function Post({
     controlViewerPlayback();
     return () => {
       if (firstVideoRef.current) {
-        firstVideoRef.current.pauseAsync().catch(() => {});
+        firstVideoRef.current
+          .setStatusAsync({ shouldPlay: false })
+          .catch(() => {});
       }
     };
   }, [viewerVisible, media]);
@@ -662,31 +665,38 @@ export function Post({
                 <View
                   style={{
                     width,
+                    height,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
                 >
                   {m.Media_type === "video" ? (
-                    <Video
-                      ref={isFirstVideo ? firstVideoRef : null}
-                      source={{ uri: url }}
-                      style={{
-                        width: width * 0.9,
-                        height: height * 0.6,
-                        borderRadius: 12,
+                    <TouchableOpacity
+                      activeOpacity={1}
+                      onPress={async () => {
+                        setModalMuted((prev) => {
+                          const next = !prev;
+                          if (!next && isFirstVideo && firstVideoRef.current) {
+                            firstVideoRef.current.playAsync().catch(() => {});
+                          }
+                          return next;
+                        });
                       }}
-                      resizeMode="contain"
-                      useNativeControls
-                      shouldPlay={isFirstVideo}
-                    />
+                    >
+                      <Video
+                        ref={isFirstVideo ? firstVideoRef : null}
+                        source={{ uri: url }}
+                        style={{ width: width, height: height }}
+                        resizeMode="contain"
+                        useNativeControls
+                        shouldPlay={isFirstVideo}
+                        isMuted={modalMuted}
+                      />
+                    </TouchableOpacity>
                   ) : (
                     <Image
                       source={{ uri: url }}
-                      style={{
-                        width: width * 0.9,
-                        height: height * 0.6,
-                        borderRadius: 12,
-                      }}
+                      style={{ width: width, height: height }}
                       resizeMode="contain"
                     />
                   )}

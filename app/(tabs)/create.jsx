@@ -5,14 +5,14 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import endpoints from "../../endpoints/endpoints";
@@ -58,9 +58,10 @@ export default function Create() {
   // ===== PICK MEDIA =====
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, // ❌ Changed from .All to .Images
+      mediaTypes: ImagePicker.MediaTypeOptions.All, // ✅ Changed to .All
       allowsMultipleSelection: true,
       quality: 0.7, // initial compression
+      // videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
     });
 
     if (!result.canceled) {
@@ -103,8 +104,8 @@ export default function Create() {
       formData.append("media[]", {
         uri: file.uri,
         name: `upload_${Date.now()}_${i}.${ext}`,
-        type: `image/${ext}`,
-        // type: file.type === "video" ? "video/mp4" : `image/${ext}`, // ❌ Temporarily disabled video
+        // type: `image/${ext}`,
+        type: file.type === "video" ? "video/mp4" : `image/${ext}`, // ✅ Enabled video support
       });
     });
 
@@ -335,7 +336,7 @@ export default function Create() {
         <View style={styles.bottomLeft}>
           <TouchableOpacity onPress={pickMedia} style={styles.iconAction}>
             <Ionicons name="images" size={24} color="#45BD62" />
-            <Text style={styles.iconLabel}>Photo</Text>
+            <Text style={styles.iconLabel}>Photo/Video</Text>
           </TouchableOpacity>
         </View>
 

@@ -28,7 +28,7 @@ function StackLayout() {
     const inAuthGroup = segments[0] === "auth";
 
     if (!userSession && !inAuthGroup) {
-      router.replace("/auth/login");
+      router.replace("/auth/signup");
     } else if (userSession && inAuthGroup) {
       router.replace("/(tabs)/feed");
     }

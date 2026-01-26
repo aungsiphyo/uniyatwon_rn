@@ -32,18 +32,29 @@ const MyProfile = () => {
       setLoading(true);
       const token = await AsyncStorage.getItem("token");
       const uuid = await AsyncStorage.getItem("user_uuid");
-      const name = await AsyncStorage.getItem("username");
+      const name = await AsyncStorage.getItem("Username");
       setMyInfo({ uuid, name });
 
       const res = await fetch(endpoints.profileMe, {
-        method: "GET",
+        method: "GET", // Reverting to GET as profile.php reads no body
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "User-Agent": "UniyatwoonApp/1.0", // Adding UA to bypass stricter firewalls
         },
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      console.log("Profile Fetch Response:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("JSON Parse Error:", e, "Raw Text:", text);
+        // Alert.alert("Error", "Failed to load profile data.");
+        return;
+      }
 
       if (data && data.posts) {
         const normalized = data.posts.map((p) => ({
@@ -135,17 +146,24 @@ const MyProfile = () => {
         <View style={styles.avatarWrapper}>
           <Image
             source={{
-              uri:
-                userSession?.Profile_photo &&
-                userSession.Profile_photo.startsWith("http")
-                  ? userSession.Profile_photo
-                  : `${endpoints.baseURL}${userSession?.Profile_photo || "default.png"}`.replace(
-                      /([^:]\/)\/+/g,
-                      "$1",
-                    ),
+              uri: (() => {
+                const photo =
+                  userProfile?.userInfo?.Profile_photo ||
+                  userSession?.Profile_photo ||
+                  "default.png";
+                if (photo.startsWith("http")) return photo;
+                return `${endpoints.baseURL}${photo}`.replace(
+                  /([^:]\/)\/+/g,
+                  "$1",
+                );
+              })(),
             }}
             style={styles.bigAvatar}
           />
+          {/* <Image
+            source={require("../../assets/frame.png")}
+            style={styles.frame}
+          /> */}
         </View>
 
         <View style={styles.nameSection}>
@@ -288,19 +306,35 @@ const styles = StyleSheet.create({
   },
   avatarWrapper: {
     position: "relative",
-    padding: 3,
+    width: 140,
+    height: 140,
+    padding: 0,
     backgroundColor: "#fff",
-    borderRadius: 53,
+    borderRadius: 90,
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  frame: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    top: 0,
+    left: 0,
+    resizeMode: "contain",
+    zIndex: 5,
   },
   bigAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: "#fff",
+    position: "absolute",
   },
   nameSection: {
     alignItems: "center",

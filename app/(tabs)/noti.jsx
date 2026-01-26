@@ -3,14 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import endpoints from "../../endpoints/endpoints";
 import { getTimeAgo } from "../../utils/time";
@@ -110,10 +110,15 @@ const NotificationsScreen = () => {
         {/* Text Content */}
         <View style={styles.contentContainer}>
           <Text style={styles.messageText} numberOfLines={3}>
-            <Text style={styles.usernameText}>
-              {item.from_username || "Someone"}{" "}
-            </Text>
-            {item.message || item.Message || "sent you a notification"}
+            {(() => {
+              const rawMsg =
+                item.message || item.Message || "sent you a notification";
+              // Clean up legacy messages like "commented on your post (post_id: 28)"
+              if (rawMsg.includes("(post_id:")) {
+                return "commented on your post";
+              }
+              return rawMsg;
+            })()}
           </Text>
           <Text style={styles.timeText}>
             {getTimeAgo(item.created_at || item.Created_at)}

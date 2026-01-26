@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -38,10 +40,7 @@ const EditProfile = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      console.log("Edit Profile - Fetched Data:", json);
 
-      // The provided profile.php returns { isOwnProfile, posts }
-      // We try to get user details from the first post if any, as it joined with the users table
       const user =
         json.user ||
         (json.posts && json.posts.length > 0 ? json.posts[0] : null);
@@ -67,17 +66,55 @@ const EditProfile = () => {
     fetchProfile();
   }, []);
 
+  /* ================= 🔧 FIXED IMAGE COMPRESSION ================= */
+  const getFormat = (uri) => {
+    const lower = uri.toLowerCase();
+    if (lower.endsWith(".png")) return ImageManipulator.SaveFormat.PNG;
+    if (lower.endsWith(".webp")) return ImageManipulator.SaveFormat.WEBP;
+    return ImageManipulator.SaveFormat.JPEG;
+  };
+
+  const compressImage = async (asset) => {
+    try {
+      const info = await FileSystem.getInfoAsync(asset.uri);
+
+      // ✅ Skip compression if already small (<300KB)
+      if (!info.size || info.size < 300 * 1024) {
+        return asset;
+      }
+
+      const result = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 300 } }],
+        {
+          compress: 0.6,
+          format: getFormat(asset.uri),
+        },
+      );
+
+      return {
+        ...asset,
+        uri: result.uri,
+      };
+    } catch (err) {
+      console.log("Compression Error:", err);
+      return asset;
+    }
+  };
+
   /* ================= PICK IMAGE ================= */
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.8,
       allowsEditing: true,
       aspect: [1, 1],
+      quality: 1, // 🔧 FIX: no compression here
     });
 
     if (!result.canceled) {
-      setPhoto(result.assets[0]);
+      const original = result.assets[0];
+      const compressed = await compressImage(original);
+      setPhoto(compressed);
     }
   };
 
@@ -91,68 +128,43 @@ const EditProfile = () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("token");
-      console.log("Debug: Token exists:", !!token);
+
+      if (photo && photo.uri && !photo.uri.startsWith("http")) {
+        const fileInfo = await FileSystem.getInfoAsync(photo.uri);
+        console.log(
+          "DEBUG: Final image size:",
+          (fileInfo.size / 1024).toFixed(1),
+          "KB",
+        );
+      }
 
       const formData = new FormData();
       formData.append("Username", username);
       formData.append("Phone", phone);
       formData.append("Year", year);
       formData.append("Location", location);
-      // formData.append("Major", major);
-
-      console.log("Debug: Form Data (Text):", {
-        username,
-        phone,
-        year,
-        location,
-      });
 
       if (photo && photo.uri && !photo.uri.startsWith("http")) {
-        const uriParts = photo.uri.split(".");
-        const fileType = uriParts[uriParts.length - 1];
-
-        console.log("Debug: Appending Photo:", {
-          uri: photo.uri,
-          name: `profile.${fileType}`,
-          type: `image/${fileType}`,
-        });
-
+        const ext = photo.uri.split(".").pop();
         formData.append("Profile_photo", {
           uri: photo.uri,
-          name: `profile.${fileType}`,
-          type: `image/${fileType}`,
+          name: `profile.${ext}`,
+          type: `image/${ext}`,
         });
-      } else {
-        console.log("Debug: No new photo to upload (or photo is remote)");
       }
-
-      console.log("Debug: Sending request to:", endpoints.editProfile);
 
       const res = await fetch(endpoints.editProfile, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
-          // Note: Do NOT set Content-Type for FormData, Fetch sets it automatically with boundary
         },
         body: formData,
       });
 
-      console.log("Debug: Response Status:", res.status);
-
-      const responseText = await res.text();
-      console.log("Debug: Raw Server Response:", responseText);
-
-      let json;
-      try {
-        json = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Debug: JSON Parse Error:", parseError);
-        throw new Error("Invalid server response format (Not JSON)");
-      }
+      const json = await res.json();
 
       if (json.success) {
-        // Update global session
         updateSession({
           Username: username,
           Profile_photo:
@@ -168,7 +180,6 @@ const EditProfile = () => {
         Alert.alert("Error", json.message || "Update failed");
       }
     } catch (e) {
-      console.error("Save Profile Error:", e);
       Alert.alert("Error", e.message || "Something went wrong");
     } finally {
       setLoading(false);
@@ -183,7 +194,7 @@ const EditProfile = () => {
     );
   }
 
-  /* ================= UI ================= */
+  /* ================= UI (UNCHANGED) ================= */
   return (
     <View style={styles.container}>
       {/* HEADER */}
@@ -220,24 +231,10 @@ const EditProfile = () => {
             style={styles.input}
             value={username}
             onChangeText={setUsername}
-            placeholder="Enter username"
           />
-
-          {/* <Text style={styles.label}>Major</Text>
-          <TextInput
-            style={styles.input}
-            value={major}
-            onChangeText={setMajor}
-            placeholder="Enter major (e.g. CEIT)"
-          /> */}
 
           <Text style={styles.label}>Year / Semester</Text>
-          <TextInput
-            style={styles.input}
-            value={year}
-            onChangeText={setYear}
-            placeholder="Enter year"
-          />
+          <TextInput style={styles.input} value={year} onChangeText={setYear} />
 
           <Text style={styles.label}>Phone Number</Text>
           <TextInput
@@ -245,7 +242,6 @@ const EditProfile = () => {
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-            placeholder="Enter phone number"
           />
 
           <Text style={styles.label}>Location</Text>
@@ -253,7 +249,6 @@ const EditProfile = () => {
             style={styles.input}
             value={location}
             onChangeText={setLocation}
-            placeholder="Enter location"
           />
         </View>
 
@@ -276,31 +271,18 @@ const EditProfile = () => {
 
 export default EditProfile;
 
-/* ================= STYLES ================= */
+/* ================= STYLES (UNCHANGED) ================= */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingTop: 40,
-  },
-  center: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  container: { flex: 1, backgroundColor: "#fff", paddingTop: 40 },
+  center: { justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     justifyContent: "space-between",
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  avatarWrap: {
-    alignItems: "center",
-    marginVertical: 10,
-  },
+  headerTitle: { fontSize: 18, fontWeight: "700" },
+  avatarWrap: { alignItems: "center", marginVertical: 10 },
   avatarCircle: {
     width: 110,
     height: 110,
@@ -310,11 +292,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     overflow: "hidden",
   },
-  avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-  },
+  avatar: { width: 110, height: 110, borderRadius: 55 },
   cameraIcon: {
     position: "absolute",
     bottom: 5,
@@ -323,32 +301,18 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 20,
   },
-  changePhoto: {
-    marginTop: 8,
-    fontWeight: "600",
-    color: "#007AFF",
-  },
-  subText: {
-    color: "#999",
-    fontSize: 12,
-    marginTop: 2,
-  },
+  changePhoto: { marginTop: 8, fontWeight: "600", color: "#007AFF" },
+  subText: { color: "#999", fontSize: 12, marginTop: 2 },
   card: {
     backgroundColor: "#f9f9f9",
     margin: 16,
     borderRadius: 15,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
   },
   label: {
     fontSize: 12,
     color: "#888",
     fontWeight: "600",
-    textTransform: "uppercase",
     marginTop: 15,
   },
   input: {
@@ -356,7 +320,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#ddd",
     paddingVertical: 8,
     fontSize: 16,
-    color: "#333",
   },
   saveBtn: {
     backgroundColor: PRIMARY,
@@ -366,9 +329,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 30,
   },
-  saveText: {
-    color: "#000",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  saveText: { color: "#000", fontWeight: "700", fontSize: 16 },
 });

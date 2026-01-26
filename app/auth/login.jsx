@@ -24,27 +24,50 @@ export default function LoginScreen() {
     }
 
     try {
+      const cleanEmail = email.trim();
+      console.log("Attempting login to:", endpoints.login, {
+        Email: cleanEmail,
+      });
+
       const res = await fetch(endpoints.login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Email: email, Password: password }),
+        body: JSON.stringify({ Email: cleanEmail, Password: password }),
       });
 
-      const data = await res.json();
-      console.log("LOGIN RESPONSE:", data);
+      console.log("Response Status:", res.status);
+      const responseText = await res.text();
+      console.log("Raw Response:", responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("JSON Parse Error:", e);
+        Alert.alert(
+          "Server Error",
+          "The server returned an invalid response. Check console logs.",
+        );
+        return;
+      }
 
       if (!data.success) {
-        Alert.alert("Login failed", data.message);
+        Alert.alert("Login failed", data.message || "Invalid credentials");
         return;
       }
 
       // ✅ Update global auth context (this also handles AsyncStorage)
-      await signIn(data.user_uuid, data.Username, data.token, data.is_admin);
+      await signIn(
+        data.user_uuid,
+        data.Username,
+        data.token,
+        Number(data.is_admin),
+      );
 
       Alert.alert("Success", "Login successful");
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Cannot connect to server");
+      console.error("Network/Login Error:", error);
+      Alert.alert("Error", "Cannot connect to server. Check your connection.");
     }
   };
 
@@ -72,6 +95,8 @@ export default function LoginScreen() {
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <TouchableOpacity style={styles.submitBtn} onPress={handleLogin}>

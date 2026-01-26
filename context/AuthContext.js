@@ -19,18 +19,20 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const loadStorageData = async () => {
       try {
-        let userUuid, username, token, isAdmin;
+        let userUuid, username, token, isAdmin, photo;
 
         if (Platform.OS === "web") {
           userUuid = localStorage.getItem("user_uuid");
           username = localStorage.getItem("Username");
           token = localStorage.getItem("token");
           isAdmin = localStorage.getItem("is_admin");
+          photo = localStorage.getItem("Profile_photo");
         } else {
           userUuid = await AsyncStorage.getItem("user_uuid");
           username = await AsyncStorage.getItem("Username");
           token = await AsyncStorage.getItem("token");
           isAdmin = await AsyncStorage.getItem("is_admin");
+          photo = await AsyncStorage.getItem("Profile_photo");
         }
 
         if (userUuid && username) {
@@ -40,6 +42,7 @@ export function AuthProvider({ children }) {
             Username: username,
             token,
             is_admin: isAdmin ? parseInt(isAdmin) : 0,
+            Profile_photo: photo || "default.png",
           });
         } else {
           console.log("AuthContext: No session found");
@@ -65,14 +68,16 @@ export function AuthProvider({ children }) {
         await AsyncStorage.setItem("user_uuid", userUuid);
         await AsyncStorage.setItem("Username", username);
         await AsyncStorage.setItem("token", token);
-        await AsyncStorage.setItem("is_admin", isAdmin.toString());
+        if (isAdmin !== undefined && isAdmin !== null) {
+          await AsyncStorage.setItem("is_admin", isAdmin.toString());
+        }
       }
       setUserSession({
         user_uuid: userUuid,
         Username: username,
         token,
-        is_admin: parseInt(isAdmin),
-        Profile_photo: "default.png", // Initial default
+        is_admin: isAdmin !== undefined ? parseInt(isAdmin) : 0,
+        Profile_photo: "default.png",
       });
     } catch (e) {
       console.error("Sign in error", e);

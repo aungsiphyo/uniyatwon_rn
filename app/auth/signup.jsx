@@ -2,15 +2,15 @@ import { Ionicons } from "@expo/vector-icons"; // Added Ionicons
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown"; // New Import
 import endpoints from "../../endpoints/endpoints";
@@ -35,14 +35,38 @@ const yearData = [
   { label: "2nd semester", value: "2nd semester" },
   { label: "3rd semester", value: "3rd semester" },
   { label: "4th semester", value: "4th semester" },
-  { label: "Third Year - First semester", value: "3-1" },
-  // { label: "Third Year - Second semester", value: "3-2" },
-  { label: "Fourth Year - First semester", value: "4-1" },
-  { label: "Fourth Year - Second semester", value: "4-2" },
-  { label: "Fifth Year - First semester", value: "5-1" },
-  // { label: "Fifth Year - Second semester", value: "5-2" },
-  { label: "Sixth Year - First semester", value: "6-1" },
-  // { label: "Sixth Year - Second semester", value: "6-2" },
+  {
+    label: "Third Year - First semester",
+    value: "Third Year - First semester",
+  },
+  {
+    label: "Third Year - Second semester",
+    value: "Third Year - Second semester",
+  },
+  {
+    label: "Fourth Year - First semester",
+    value: "Fourth Year - First semester",
+  },
+  {
+    label: "Fourth Year - Second semester",
+    value: "Fourth Year - Second semester",
+  },
+  {
+    label: "Fifth Year - First semester",
+    value: "Fifth Year - First semester",
+  },
+  {
+    label: "Fifth Year - Second semester",
+    value: "Fifth Year - Second semester",
+  },
+  {
+    label: "Sixth Year - First semester",
+    value: "Sixth Year - First semester",
+  },
+  {
+    label: "Sixth Year - Second semester",
+    value: "Sixth Year - Second semester",
+  },
 ];
 
 export default function SignupScreen() {
