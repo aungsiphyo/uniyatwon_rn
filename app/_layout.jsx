@@ -27,9 +27,14 @@ function StackLayout() {
 
     const inAuthGroup = segments[0] === "auth";
 
+    // ✅ ADD THIS LINE — allow postDetail route
+    const inPostDetail = segments[0] === "postDetail";
+
     if (!userSession && !inAuthGroup) {
       router.replace("/auth/signup");
-    } else if (userSession && inAuthGroup) {
+    }
+    // ✅ Prevent redirect loop when opening post detail
+    else if (userSession && inAuthGroup) {
       router.replace("/(tabs)/feed");
     }
   }, [userSession, segments, isLoading, isMounted, navigationState]);
@@ -37,16 +42,10 @@ function StackLayout() {
   // Handle Push Notification Registration
   useEffect(() => {
     if (userSession && isMounted) {
-      console.log(
-        "Starting push registration for user:",
-        userSession.user_uuid,
-      );
       const handleRegistration = async () => {
         try {
           const token = await registerForPushNotificationsAsync();
           if (token) {
-            console.log("Token received, sending to server:", token);
-
             const res = await fetch(endpoints.savePushToken, {
               method: "POST",
               headers: {
@@ -58,21 +57,17 @@ function StackLayout() {
                 push_token: token,
               }),
             });
+
             const data = await res.json();
-            if (data.success) {
-              console.log("Push token successfully saved to DB");
-            } else {
+            if (!data.success) {
               console.error("Server failed to save push token:", data.message);
             }
-          } else {
-            console.log(
-              "No push token returned (likely due to environment/Expo Go).",
-            );
           }
         } catch (err) {
-          console.error("Detailed Push Registration Error:", err);
+          console.error("Push Registration Error:", err);
         }
       };
+
       handleRegistration();
     }
   }, [userSession, isMounted]);
@@ -87,14 +82,11 @@ function StackLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {/* 1. Standard Route Definitions */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
 
-      {/* 2. FIXED: In Expo Router, do NOT use 'component' prop here */}
-      {/* Name must match filename: 'profile' for 'profile.jsx' */}
       <Stack.Screen
-        name="profile_other" // Change this from "profile" to "profile_other"
+        name="profile_other"
         options={{
           headerShown: true,
           title: "User Profile",

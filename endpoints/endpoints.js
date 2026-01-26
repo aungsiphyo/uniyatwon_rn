@@ -6,6 +6,7 @@ export default {
   login: BASE_URL + "login.php",
   signup: BASE_URL + "user_create.php",
   fetchposts: BASE_URL + "fetchposts.php",
+  fetchDetailPost: BASE_URL + "fetchdetailpost.php",
   search: BASE_URL + "search.php",
   searchHistory: BASE_URL + "search_history.php",
   addpost: BASE_URL + "addposts.php",

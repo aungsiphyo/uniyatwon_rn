@@ -3,52 +3,57 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import PostCard from "../components/PostCard"; // Import PostCard
-import endpoints from "../endpoints/endpoints";
+import PostCard from "../../components/PostCard";
+import endpoints from "../../endpoints/endpoints";
 
 const PRIMARY = "#FFD84D";
 
 export default function PostDetail() {
-  const { post_id } = useLocalSearchParams();
+  const { post_id } = useLocalSearchParams(); // comes from /postDetail/123
   const router = useRouter();
+
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUuid, setCurrentUuid] = useState(null);
 
-  useEffect(() => {
-    fetchSinglePost();
-  }, [post_id, fetchSinglePost]); // Added fetchSinglePost to dependency array
-
   const fetchSinglePost = useCallback(async () => {
     try {
       setLoading(true);
+
       const token = await AsyncStorage.getItem("token");
       const savedUsername = await AsyncStorage.getItem("username");
       const savedUuid = await AsyncStorage.getItem("user_uuid");
+
       setCurrentUsername(savedUsername);
       setCurrentUuid(savedUuid);
 
-      const res = await fetch(`${endpoints.fetchposts}?post_id=${post_id}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          Accept: "application/json",
+      const res = await fetch(
+        `${endpoints.fetchDetailPost}?post_id=${post_id}`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            Accept: "application/json",
+          },
         },
-      });
+      );
 
       const data = await res.json();
-      const postsArray = data.posts || data;
 
-      // Find the specific post
-      const foundPost = postsArray.find((p) => (p.id || p.post_id) === post_id); // Replaced == with ===
+      if (!data.success || !data.post) {
+        setPost(null);
+        return;
+      }
+
+      const foundPost = data.post;
 
       if (foundPost) {
         const fixed = {
@@ -62,11 +67,14 @@ export default function PostDetail() {
           Created_at:
             foundPost.Created_at || foundPost.created_at || "Just now",
           like_count: parseInt(foundPost.like_count || 0),
-          is_liked: !!(foundPost.is_liked === 1), // Replaced == with ===
-          is_saved: !!(foundPost.is_saved === 1), // Replaced == with ===
+          is_liked: Number(foundPost.is_liked) === 1,
+          is_saved: Number(foundPost.is_saved) === 1,
           comments: Array.isArray(foundPost.comments) ? foundPost.comments : [],
         };
+
         setPost(fixed);
+      } else {
+        setPost(null);
       }
     } catch (err) {
       console.error("Fetch single post error:", err);
@@ -75,9 +83,15 @@ export default function PostDetail() {
     }
   }, [post_id]);
 
+  // ✅ Only depend on post_id
+  useEffect(() => {
+    if (post_id) fetchSinglePost();
+  }, [post_id]);
+
   const handleDeletePost = async (postId) => {
     try {
       const token = await AsyncStorage.getItem("token");
+
       const res = await fetch(endpoints.deletePost, {
         method: "POST",
         headers: {
@@ -88,6 +102,7 @@ export default function PostDetail() {
       });
 
       const data = await res.json();
+
       if (data.success) {
         Alert.alert("Success", "Post deleted successfully", [
           { text: "OK", onPress: () => router.back() },
@@ -103,6 +118,7 @@ export default function PostDetail() {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="black" />
@@ -125,7 +141,6 @@ export default function PostDetail() {
             currentUserUuid={currentUuid}
             isVisible={true}
             onRefresh={fetchSinglePost}
-            onDelete={handleDeletePost}
           />
         ) : (
           <Text style={styles.errorText}>
@@ -150,5 +165,10 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eee",
   },
   headerTitle: { fontSize: 18, fontWeight: "700" },
-  errorText: { textAlign: "center", marginTop: 40, color: "#888" },
+  errorText: {
+    textAlign: "center",
+    marginTop: 40,
+    color: "#888",
+    fontSize: 16,
+  },
 });

@@ -68,16 +68,13 @@ const NotificationsScreen = () => {
   };
 
   const handleNotificationPress = (item) => {
-    alert("Notification pressed: " + item.id);
-    // // 1. Navigate to details if post_id exists
-    // if (item.post_id) {
-    //   router.push({
-    //     pathname: "/PostDetail",
-    //     params: { post_id: item.post_id },
-    //   });
-    // }
+    // alert("Notification pressed: " + item.post_id);
+    // 1. Navigate to details if post_id exists
+    if (item.post_id) {
+      router.push(`/postDetail/${item.post_id}`);
+    }
 
-    // // 2. Logic to mark as read locally (Optional)
+    // 2. Logic to mark as read locally (Optional)
     // setNotifications((prev) =>
     //   prev.map((n) => (n.id === item.id ? { ...n, is_read: 1 } : n)),
     // );
