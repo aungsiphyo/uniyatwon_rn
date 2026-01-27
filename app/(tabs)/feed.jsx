@@ -1,7 +1,8 @@
 import { Feather, FontAwesome, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Video } from "expo-av";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -17,7 +18,6 @@ import {
   View,
 } from "react-native";
 
-import { useRouter } from "expo-router";
 import Comments from "../../components/comments";
 import PostCard from "../../components/PostCard";
 import endpoints from "../../endpoints/endpoints";
@@ -160,41 +160,51 @@ export default function Feed() {
     setHasMore(true);
   }, [activeTab, isAdmin]);
 
-  const handleDeletePost = async (postId) => {
-    try {
-      setDeleting(true);
-      const token = await AsyncStorage.getItem("token");
-      console.log("Deleting post with ID:", postId);
-      console.log("Request Payload:", { Reported_post_id: postId });
-      console.log("Delete Post Endpoint:", endpoints.deletePost);
-      const res = await fetch(endpoints.deletePost, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ Reported_post_id: postId }),
-      });
+  // Focus effect to refresh feed when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setPosts([]); // Clear posts to avoid duplication
+      setPage(1); // Reset pagination
+      setHasMore(true); // Reset hasMore flag
+      loadPosts(); // Fetch posts again
+    }, [activeTab]), // Re-fetch when the active tab changes
+  );
 
-      const data = await res.json();
-      console.log("Full Delete Post Response:", data);
-      if (data.success) {
-        // Optimistic UI update or just re-fetch
-        setUserProfile((prev) => ({
-          ...prev,
-          posts: prev.posts.filter((p) => p.id !== postId),
-        }));
-        Alert.alert("Success", "Post deleted successfully");
-      } else {
-        Alert.alert("Error", data.message || "Failed to delete post");
-      }
-    } catch (err) {
-      console.error("Delete Error:", err);
-      Alert.alert("Error", "Something went wrong while deleting");
-    } finally {
-      setDeleting(false);
-    }
-  };
+  // const handleDeletePost = async (postId) => {
+  //   try {
+  //     setDeleting(true);
+  //     const token = await AsyncStorage.getItem("token");
+  //     console.log("Deleting post with ID:", postId);
+  //     console.log("Request Payload:", { Reported_post_id: postId });
+  //     console.log("Delete Post Endpoint:", endpoints.deletePost);
+  //     const res = await fetch(endpoints.deletePost, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify({ Reported_post_id: postId }),
+  //     });
+
+  //     const data = await res.json();
+  //     console.log("Full Delete Post Response:", data);
+  //     if (data.success) {
+  //       // Optimistic UI update or just re-fetch
+  //       setUserProfile((prev) => ({
+  //         ...prev,
+  //         posts: prev.posts.filter((p) => p.id !== postId),
+  //       }));
+  //       Alert.alert("Success", "Post deleted successfully");
+  //     } else {
+  //       Alert.alert("Error", data.message || "Failed to delete post");
+  //     }
+  //   } catch (err) {
+  //     console.error("Delete Error:", err);
+  //     Alert.alert("Error", "Something went wrong while deleting");
+  //   } finally {
+  //     setDeleting(false);
+  //   }
+  // };
 
   // const renderStories = () => (
   //   <FlatList
@@ -219,6 +229,7 @@ export default function Feed() {
   //     )}
   //   />
   // );
+  const LOGO_IMG = require("./../../assets/images/uniyatwon.png");
 
   const renderTabs = () => (
     <View style={styles.tabs}>
@@ -239,17 +250,21 @@ export default function Feed() {
       {/* ================= HEADER ================= */}
       <View style={styles.header}>
         <View style={styles.brandRow}>
-          <Text style={styles.brandIcon}>Ü</Text>
+          <Image
+            source={LOGO_IMG}
+            style={{ width: 40, height: 40, marginRight: 3 }}
+          />
+          {/* <Text style={styles.brandIcon}>Ü</Text> */}
           <View>
             <Text style={styles.brandText}>Uni Yatwon</Text>
             <Text style={styles.brandSub}>University Social Platform</Text>
           </View>
         </View>
 
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {/* <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Feather name="bell" size={20} style={{ marginRight: 16 }} />
           <Feather name="settings" size={20} />
-        </View>
+        </View> */}
       </View>
 
       {/* ================= FEED ================= */}

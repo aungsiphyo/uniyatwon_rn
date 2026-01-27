@@ -50,21 +50,6 @@ export default function PostCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_LINES = 3; // Number of lines to show before trimming
 
-  // When viewer opens or modalMuted changes, ensure modal video status is correct
-  useEffect(() => {
-    if (!flatListRef.current && !firstVideoRef.current) return;
-
-    if (viewerVisible && firstVideoRef.current) {
-      firstVideoRef.current
-        .setStatusAsync({ shouldPlay: true, isMuted: modalMuted })
-        .catch(() => {});
-    } else if (!viewerVisible && firstVideoRef.current) {
-      firstVideoRef.current
-        .setStatusAsync({ shouldPlay: false })
-        .catch(() => {});
-    }
-  }, [viewerVisible, modalMuted]);
-
   // Animated values
   const scaleLike = useRef(new Animated.Value(1)).current;
   const scaleSave = useRef(new Animated.Value(1)).current;
@@ -102,6 +87,21 @@ export default function PostCard({
     }
   }, [isVisible, media]);
 
+  // Modal video play/pause based on visibility & mute
+  useEffect(() => {
+    if (!flatListRef.current && !firstVideoRef.current) return;
+
+    if (viewerVisible && firstVideoRef.current) {
+      firstVideoRef.current
+        .setStatusAsync({ shouldPlay: true, isMuted: modalMuted })
+        .catch(() => {});
+    } else if (!viewerVisible && firstVideoRef.current) {
+      firstVideoRef.current
+        .setStatusAsync({ shouldPlay: false })
+        .catch(() => {});
+    }
+  }, [viewerVisible, modalMuted]);
+
   const bounce = (v) => {
     Animated.sequence([
       Animated.timing(v, {
@@ -117,8 +117,8 @@ export default function PostCard({
     if (!user_uuid) return;
     router.push({ pathname: "profile_other", params: { user_uuid } });
   };
+
   const handleSavePost = async (postId) => {
-    // 1. Optimistic Update
     const prevSaved = saved;
     setSaved(!prevSaved);
     bounce(scaleSave);
@@ -137,44 +137,25 @@ export default function PostCard({
       const data = await res.json();
 
       if (!data.success) {
-        // 2. Revert if the server failed
         setSaved(prevSaved);
       } else {
-        // 3. Sync with actual server state
         setSaved(data.action === "saved");
       }
     } catch (err) {
       console.error("Save post error:", err);
-      setSaved(prevSaved); // Revert on network error
+      setSaved(prevSaved);
     }
   };
-
-  console.log("Delete Icon Debug:", {
-    postUserUuid: item.user_uuid,
-    currentUserUuid,
-    onDeleteExists: !!onDelete,
-  });
 
   return (
     <View style={styles.post}>
       <View style={styles.postInner}>
-        {/* {onDelete && item.user_uuid === currentUserUuid && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => onDelete(item.id)}
-          >
-            <Ionicons name="trash-outline" size={18} color="#fff" />
-          </TouchableOpacity>
-        )} */}
         {/* HEADER */}
         <View style={styles.postHeader}>
           <TouchableOpacity onPress={() => handleViewProfile(item.user_uuid)}>
             <Image
               source={{
-                uri: encodeURI(
-                  endpoints.baseURL +
-                    (item.Profile_photo || "default.png").trim(),
-                ),
+                uri: `${endpoints.baseURL.replace(/\/$/, "")}/${item.Profile_photo?.trim() || "default.png"}`,
               }}
               style={styles.postAvatar}
             />
@@ -208,6 +189,7 @@ export default function PostCard({
           )}
         </View>
 
+        {/* DESCRIPTION */}
         <View style={styles.postContainer}>
           {(() => {
             const desc = item.Description || "";
@@ -221,11 +203,7 @@ export default function PostCard({
                   ellipsizeMode="tail"
                 >
                   {displayText}
-                  {!isExpanded && needsTruncate && displayText.length >= 150
-                    ? ""
-                    : ""}
                 </Text>
-
                 {needsTruncate && (
                   <TouchableOpacity onPress={() => setIsExpanded(!isExpanded)}>
                     <Text style={styles.seeMore}>
@@ -243,38 +221,31 @@ export default function PostCard({
           <View style={{ marginTop: 12 }}>
             {media.length === 1 ? (
               <TouchableOpacity
+                activeOpacity={0.9}
                 onPress={() => {
                   setActiveIndex(0);
                   setViewerVisible(true);
                 }}
+                style={{ marginTop: 12, borderRadius: 12, overflow: "hidden" }}
               >
                 {media[0].Media_type === "video" ? (
                   <View>
                     <Video
                       ref={feedVideoRef}
                       source={{
-                        uri: encodeURI(endpoints.baseURL + media[0].Media_url),
+                        uri: `${endpoints.baseURL.replace(/\/$/, "")}${media[0].Media_url.startsWith("/") ? "" : "/"}${media[0].Media_url}`,
                       }}
-                      style={styles.postImage}
+                      style={viewerStyles.feedVideo}
                       resizeMode="cover"
                       isMuted
+                      shouldPlay={isVisible}
                       isLooping
                     />
-                    <TouchableOpacity
-                      style={styles.playOverlay}
-                      onPress={() => setIsPlaying(!isPlaying)}
-                    >
-                      <Ionicons
-                        name={isPlaying ? "pause" : "play"}
-                        size={42}
-                        color="#fff"
-                      />
-                    </TouchableOpacity>
                   </View>
                 ) : (
                   <Image
                     source={{
-                      uri: encodeURI(endpoints.baseURL + media[0].Media_url),
+                      uri: `${endpoints.baseURL.replace(/\/$/, "")}${media[0].Media_url.startsWith("/") ? "" : "/"}${media[0].Media_url}`,
                     }}
                     style={styles.postImage}
                   />
@@ -293,7 +264,7 @@ export default function PostCard({
                   >
                     <Image
                       source={{
-                        uri: encodeURI(endpoints.baseURL + m.Media_url),
+                        uri: `${endpoints.baseURL.replace(/\/$/, "")}${m.Media_url.startsWith("/") ? "" : "/"}${m.Media_url}`,
                       }}
                       style={styles.postImage}
                     />
@@ -325,9 +296,7 @@ export default function PostCard({
                   body: JSON.stringify({ post_id: item.id }),
                 })
                   .then((r) => r.json())
-                  .catch(() => {
-                    setLiked(prev);
-                  });
+                  .catch(() => setLiked(prev));
                 setIsProcessingLike(false);
               }}
             >
@@ -360,7 +329,6 @@ export default function PostCard({
 
           {item.user_uuid !== currentUserUuid && (
             <TouchableOpacity onPress={() => handleSavePost(item.id)}>
-              {/* setSaved(!saved); bounce(scaleSave); */}
               <Animated.View style={{ transform: [{ scale: scaleSave }] }}>
                 <FontAwesome
                   name={saved ? "bookmark" : "bookmark-o"}
@@ -390,7 +358,7 @@ export default function PostCard({
                 setCommentVisible(false);
                 setTimeout(() => {
                   router.push({ pathname: path, params });
-                }, 300); // Small delay to allow modal to close smoothly
+                }, 300);
               }}
             />
           </View>
@@ -417,67 +385,68 @@ export default function PostCard({
                   ev.nativeEvent.contentOffset.x / width,
                 );
                 setActiveIndex(index);
-
-                if (index !== 0) {
-                  firstVideoRef.current?.pauseAsync();
-                } else if (media[0]?.Media_type === "video") {
+                if (index !== 0) firstVideoRef.current?.pauseAsync();
+                else if (media[0]?.Media_type === "video")
                   firstVideoRef.current?.playAsync();
-                }
               }}
               renderItem={({ item: m, index }) => {
-                const url = encodeURI(
-                  endpoints.baseURL.replace(/\/$/, "") +
-                    "/" +
-                    m.Media_url.replace(/^\//, ""),
-                );
+                const url = `${endpoints.baseURL.replace(/\/$/, "")}${m.Media_url.startsWith("/") ? "" : "/"}${m.Media_url}`;
                 const isFirstVideo = index === 0 && m.Media_type === "video";
+
                 return (
-                  <View
-                    style={{
-                      width,
-                      height,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
+                  <View style={viewerStyles.fullScreenContainer}>
                     {m.Media_type === "video" ? (
-                      <TouchableOpacity
-                        activeOpacity={1}
-                        onPress={async () => {
-                          const next = !modalMuted;
-                          setModalMuted(next);
-                          try {
-                            if (isFirstVideo && firstVideoRef.current) {
-                              await firstVideoRef.current.setStatusAsync({
-                                isMuted: next,
-                                shouldPlay: true,
-                              });
-                            }
-                          } catch (e) {
-                            // fallback to playAsync
-                            if (isFirstVideo && firstVideoRef.current) {
-                              try {
-                                if (!next)
-                                  await firstVideoRef.current.playAsync();
-                              } catch {}
-                            }
-                          }
+                      <View
+                        style={{
+                          width,
+                          height,
+                          justifyContent: "center",
+                          alignItems: "center",
                         }}
                       >
                         <Video
                           ref={isFirstVideo ? firstVideoRef : null}
                           source={{ uri: url }}
-                          style={{ width: width, height: height }}
+                          style={viewerStyles.fullScreenVideo}
                           resizeMode="contain"
-                          useNativeControls
-                          shouldPlay={isFirstVideo}
-                          isMuted={modalMuted}
+                          useNativeControls={false} // Disable the seeker bar and other UI
+                          shouldPlay={viewerVisible && index === activeIndex}
+                          isMuted={false} // Full screen usually has sound
                         />
-                      </TouchableOpacity>
+
+                        {/* Custom Play/Pause Overlay */}
+                        <TouchableOpacity
+                          style={viewerStyles.customControlsOverlay}
+                          onPress={async () => {
+                            const videoRef = isFirstVideo
+                              ? firstVideoRef.current
+                              : null;
+                            if (videoRef) {
+                              const status = await videoRef.getStatusAsync();
+                              if (status.isPlaying) {
+                                await videoRef.pauseAsync();
+                                setIsPlaying(false);
+                              } else {
+                                await videoRef.playAsync();
+                                setIsPlaying(true);
+                              }
+                            }
+                          }}
+                        >
+                          {/* The icon only shows when paused to keep the view clean */}
+                          {!isPlaying && (
+                            <Ionicons
+                              name="play"
+                              size={60}
+                              color="rgba(255,255,255,0.8)"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     ) : (
                       <Image
                         source={{ uri: url }}
-                        style={{ width: width, height: height }}
+                        style={viewerStyles.fullScreenVideo}
                         resizeMode="contain"
                       />
                     )}
@@ -509,12 +478,7 @@ const styles = StyleSheet.create({
   postName: { fontWeight: "600" },
   postTime: { fontSize: 11, color: "#888" },
   postText: { marginTop: 10 },
-  seeMore: {
-    color: "#007AFF",
-    fontWeight: "600",
-    marginTop: 4,
-    fontSize: 14,
-  },
+  seeMore: { color: "#007AFF", fontWeight: "600", marginTop: 4, fontSize: 14 },
   postImage: {
     height: 200,
     width: "100%",
@@ -527,21 +491,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
-  playOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.15)",
-  },
   postActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 12,
   },
-
-  postInner: {
-    position: "relative",
-  },
+  postInner: { position: "relative" },
   deleteButton: {
     position: "absolute",
     top: 8,
@@ -554,12 +509,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 20,
   },
-
-  like_comment: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 30,
-  },
+  like_comment: { flexDirection: "row", alignItems: "center", gap: 30 },
   actionRow: { flexDirection: "row", alignItems: "center" },
   actionText: { marginLeft: 6, fontSize: 14 },
   commentBox: { flex: 1, backgroundColor: "#fff", paddingTop: 50 },
@@ -589,18 +539,33 @@ const viewerStyles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     borderRadius: 20,
   },
-  postText: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
+  feedVideo: {
+    width: "100%",
+    height: 250,
+    borderRadius: 12,
+    backgroundColor: "#000",
   },
-  seeMore: {
-    color: "#007AFF", // Blue link color
-    fontWeight: "600",
-    marginTop: 4,
+  feedVideoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
-  postContainer: {
-    paddingHorizontal: 16,
-    marginVertical: 8,
+  fullScreenContainer: {
+    width,
+    height,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  fullScreenVideo: { width, height, backgroundColor: "#000" },
+  postText: { fontSize: 14, color: "#333", lineHeight: 20 },
+  seeMore: { color: "#007AFF", fontWeight: "600", marginTop: 4 },
+  postContainer: { paddingHorizontal: 16, marginVertical: 8 },
+  customControlsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent", // invisible so it doesn't block the video
   },
 });

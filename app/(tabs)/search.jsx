@@ -166,10 +166,7 @@ export default function Search() {
       });
     } else {
       saveSearch(item.Description || "Post", item.id, "post");
-      router.push({
-        pathname: "PostDetail",
-        params: { post_id: item.id },
-      });
+      router.push(`/postDetail/${item.id}`);
     }
   };
 

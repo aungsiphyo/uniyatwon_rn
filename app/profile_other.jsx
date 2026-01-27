@@ -189,7 +189,7 @@ export default function OtherProfile() {
             <Text style={styles.statNumber}>{posts.length}</Text>
             <Text style={styles.statLabel}>Posts</Text>
           </View>
-          <View style={styles.statDivider} />
+          {/* <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>--</Text>
             <Text style={styles.statLabel}>Followers</Text>
@@ -198,7 +198,7 @@ export default function OtherProfile() {
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>--</Text>
             <Text style={styles.statLabel}>Following</Text>
-          </View>
+          </View> */}
         </View>
       </View>
 
